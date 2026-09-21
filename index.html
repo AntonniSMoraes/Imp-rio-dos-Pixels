@@ -7,6 +7,24 @@
         <meta name="description" content="Construa uma vila, proteja sua linhagem e governe o Norte Gélido. Um jogo local de estratégia e dinastia.">
         <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='5' fill='%23131e22'/%3E%3Cpath d='M6 10l5 5 5-9 5 9 5-5-3 15H9z' fill='%23d3ac69'/%3E%3C/svg%3E">
         <link rel="stylesheet" href="style.css">
+        
+        <!-- No <head> do index.html -->
+        <link rel="manifest" href="manifest.json">
+        <meta name="theme-color" content="#142a3d">
+        <meta name="mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+        <meta name="apple-mobile-web-app-title" content="Império dos Pixels">
+        <link rel="apple-touch-icon" href="assets/icon-192.png">
+
+        <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js')
+                .then(() => console.log('PWA: Service Worker ativo!'))
+                .catch((err) => console.error('PWA: Falha ao registrar Service Worker', err));
+            });
+        }
+        </script>
     </head>
     <body>
         <div id="app"></div>
