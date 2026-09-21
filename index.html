@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="pt-BR">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width,initial-scale=1">
+        <title>Império dos Pixels — O Norte Gélido</title>
+        <meta name="description" content="Construa uma vila, proteja sua linhagem e governe o Norte Gélido. Um jogo local de estratégia e dinastia.">
+        <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='5' fill='%23131e22'/%3E%3Cpath d='M6 10l5 5 5-9 5 9 5-5-3 15H9z' fill='%23d3ac69'/%3E%3C/svg%3E">
+        <link rel="stylesheet" href="style.css">
+    </head>
+    <body>
+        <div id="app"></div>
+        <div id="toast" role="status"></div>
+        <dialog id="modal"></dialog>
+        <script src="names.js"></script>
+        <script src="art.js"></script>
+        <script src="game.js"></script>
+        <script src="kingdom.js"></script>
+        <script>
+            (function() {
+                function c() {
+                    var b = a.contentDocument || (a.contentWindow && a.contentWindow.document);
+                    if (b) {
+                        var d = b.createElement('script');
+                        d.innerHTML = "window.__CF$cv$params={r:'a3e289e6cda98bbf',t:'MTc4OTkyNTIyMw=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";
+                        b.getElementsByTagName('head')[0].appendChild(d)
+                    }
+                }
+                if (document.body) {
+                    var a = document.createElement('iframe');
+                    a.height = 1;
+                    a.width = 1;
+                    a.style.position = 'absolute';
+                    a.style.top = 0;
+                    a.style.left = 0;
+                    a.style.border = 'none';
+                    a.style.visibility = 'hidden';
+                    document.body.appendChild(a);
+                    if ('loading' !== document.readyState)
+                        c();
+                    else if (window.addEventListener)
+                        document.addEventListener('DOMContentLoaded', c);
+                    else {
+                        var e = document.onreadystatechange || function() {}
+                        ;
+                        document.onreadystatechange = function(b) {
+                            e(b);
+                            'loading' !== document.readyState && (document.onreadystatechange = e,
+                            c())
+                        }
+                    }
+                }
+            }
+            )();
+        </script>
+    </body>
+</html>
