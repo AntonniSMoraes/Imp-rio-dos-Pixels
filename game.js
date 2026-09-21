@@ -2233,8 +2233,24 @@ document.addEventListener("click", (e) => {
     speed = 0;
     render();
     modal(
-      "Primeiros passos",
-      "<ol><li><b>Faça um chamado</b> na cabana. Há 50% de chance de encontrar de 1 a 3 moradores; tente novamente no próximo dia se ninguém vier.</li><li><b>Construa caça e fogueira.</b> Você começa com recursos para ambas. Moradias oferecem mais espaço; nada aparece pronto além da cabana.</li><li><b>Distribua trabalho</b> na aba Trabalho ou na ficha de cada morador. O pioneiro também trabalha.</li><li><b>Inspecione sua população.</b> Clique num cidadão do mapa para abrir sua ficha lateral, ou em seu retrato na População. Novos adultos ficam com DEBUT até serem inspecionados.</li><li><b>Escolha os casamentos nas fichas.</b> Os filhos combinam cabelo, olhos, pele, sardas e textura do cabelo dos pais. A consorte do pioneiro é escolhida por você.</li></ol><p>▶: um dia a cada 5 segundos · 3×: acelerar · Ⅱ: pausar · ↦: avançar um dia. O tempo para com uma janela aberta ou com a aba oculta.</p><p>Crianças atingem a maioridade após 16 dias de aprendizado. 24 dias correspondem a um ano de idade adulta. A vila está protegida pela cabana; trabalhadores precisam de fogueira. Novos recrutados sempre têm ranks sorteados conforme o GDD.</p>",
+      "Como Jogar — Guia do Império",
+      "<ol>" +
+        "<li><b>Regiões e Fundação:</b> Ao iniciar, escolha sua província (Norte Gélido, Planícies Centrais ou Sul Temperado). A escolha afeta o clima, a demografia (cabelo e pele) e a produtividade de madeira, minério e caça.</li>" +
+        "<li><b>Capital e Expansão Territorial:</b> Sua vila inicial é a <i>Capital Real</i> e está protegida de apropriação. Compre novas terras no mapa mundi por 45 de ouro para expandir o domínio da Coroa e conceder novos feudos.</li>" +
+        "<li><b>Biomas Naturais:</b> Cada território possui bônus específicos: 🌲 Florestas (+35% lenha), 🌊 Lagos (+35% caça/pesca), ⛰️ Minas (+40% ferro) e 🌾 Planícies (equilibradas).</li>" +
+        "<li><b>Economia e Tributação Feudal:</b> Os recursos no topo da tela pertencem à Coroa. Cada lorde administra os plebeus em suas terras e cobra taxas; cada nível da pirâmide feudal repassa 25% dos ganhos ao seu suserano até chegar ao Rei.</li>" +
+        "<li><b>Hierarquia e Promoções:</b>" +
+          "<ul>" +
+            "<li>Dois soldados casados podem ser promovidos até Cavaleiro. O primeiro a virar Barão torna-se o líder perpétuo da casa nobre.</li>" +
+            "<li>Cavaleiros promovem até 4 soldados com prioridade para seu próprio gênero. Barões promovem até 4 cavaleiros. Se houver baixas ou vagas abertas, novas convocações ocorrem de forma contínua.</li>" +
+            "<li>Feudos exigem vilas conectadas dentro do domínio da Coroa, podendo ter formatos livres (I, L ou blocos). As terras que o nobre já possui contam na expansão.</li>" +
+          "</ul>" +
+        "</li>" +
+        "<li><b>Sucessão Dinástica e Complôs:</b> O herdeiro da casa é definido por <i>1º Raridade</i>, <i>2º Sexo Masculino</i> e <i>3º Idade</i>. Se um filho mais raro nascer e desbancar o herdeiro anterior, há 35% de chance de um complô de assassinato, cuja sobrevivência depende da raridade do novo sucessor.</li>" +
+        "<li><b>Aposentadoria:</b> Nobres com 60+ anos podem abdicar e passam a se chamar <i>Nobres Aposentados</i>, mantendo suas consortes e concubinas vinculadas.</li>" +
+        "<li><b>População e Memorial:</b> Moradores casados exibem o retrato do cônjuge e o contador de concubinas no card. Cidadãos falecidos são movidos para o Memorial dos Falecidos com a causa exata da morte.</li>" +
+      "</ol>" +
+      "<p class='hint'>▶ Velocidade normal (1 dia / 5s) · 3× Acelerar · Ⅱ Pausar · ↦ Avançar um dia. Crianças atingem maioridade aos 16 dias. Trabalhadores fora do abrigo precisam de fogueiras acesas para sobreviver ao frio.</p>"
     );
   }
 });
