@@ -12,85 +12,50 @@ const NAME_BANK = {
       " ",
     ),
 };
+
 const nameRegistry = { names: new Set(), families: new Set(), full: new Set() };
+
 const nameKey = (s) =>
-  s
+  String(s || "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
+    .toLowerCase()
+    .trim();
+
 function rememberIdentity(p) {
-  nameRegistry.names.add(nameKey(p.name));
-  nameRegistry.families.add(nameKey(p.family));
-  nameRegistry.full.add(nameKey(p.name + " " + p.family));
+  if (!p) return;
+  if (p.name) nameRegistry.names.add(nameKey(p.name));
+  if (p.family) nameRegistry.families.add(nameKey(p.family));
+  if (p.name && p.family) nameRegistry.full.add(nameKey(p.name + " " + p.family));
 }
+
 function seedNames(people) {
   nameRegistry.names.clear();
   nameRegistry.families.clear();
   nameRegistry.full.clear();
-  people.forEach(rememberIdentity);
+  if (Array.isArray(people)) {
+    people.forEach(rememberIdentity);
+  }
 }
+
 function chooseUnused(pool, used) {
   const free = pool.filter((n) => !used.has(nameKey(n)));
   return free.length ? free[Math.floor(Math.random() * free.length)] : null;
 }
+
 function freshFamily() {
   let family = chooseUnused(NAME_BANK.family, nameRegistry.families);
   if (!family) {
     const first = [
-      "Alder",
-      "Ash",
-      "Birch",
-      "Black",
-      "Bright",
-      "Crow",
-      "Dawn",
-      "Elder",
-      "Ember",
-      "Frost",
-      "Gold",
-      "Gray",
-      "Hawk",
-      "Iron",
-      "Mist",
-      "Moon",
-      "Oak",
-      "Pine",
-      "Raven",
-      "Red",
-      "Rune",
-      "Silver",
-      "Snow",
-      "Star",
-      "Stone",
-      "Storm",
-      "Thorn",
-      "White",
-      "Wind",
-      "Wolf",
+      "Alder", "Ash", "Birch", "Black", "Bright", "Crow", "Dawn", "Elder",
+      "Ember", "Frost", "Gold", "Gray", "Hawk", "Iron", "Mist", "Moon",
+      "Oak", "Pine", "Raven", "Red", "Rune", "Silver", "Snow", "Star",
+      "Stone", "Storm", "Thorn", "White", "Wind", "Wolf",
     ];
     const last = [
-      "borne",
-      "brook",
-      "crest",
-      "dale",
-      "fell",
-      "field",
-      "ford",
-      "gard",
-      "grove",
-      "hall",
-      "haven",
-      "helm",
-      "hold",
-      "holt",
-      "mere",
-      "moor",
-      "ridge",
-      "stone",
-      "vale",
-      "ward",
-      "wick",
-      "wood",
+      "borne", "brook", "crest", "dale", "fell", "field", "ford", "gard",
+      "grove", "hall", "haven", "helm", "hold", "holt", "mere", "moor",
+      "ridge", "stone", "vale", "ward", "wick", "wood",
     ];
     const combos = first.flatMap((a) => last.map((b) => a + b));
     family =
@@ -100,14 +65,29 @@ function freshFamily() {
   nameRegistry.families.add(nameKey(family));
   return family;
 }
+
+function getRandomPresetName(sex = "M") {
+  const pool = sex === "F" ? NAME_BANK.female : NAME_BANK.male;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+function getRandomPresetFamily() {
+  return NAME_BANK.family[Math.floor(Math.random() * NAME_BANK.family.length)];
+}
+
 function allocateIdentity(name, sex, family) {
+  // Trata e limpa strings caso venham do formulário do jogador
+  name = typeof name === "string" ? name.trim() : "";
+  family = typeof family === "string" ? family.trim() : "";
+
   family = family || freshFamily();
+
   if (!name) {
     const pool = sex === "F" ? NAME_BANK.female : NAME_BANK.male;
     name = chooseUnused(pool, nameRegistry.names);
     if (!name) {
       const start = Math.floor(Math.random() * pool.length);
-      outer: for (let a = 0; a < pool.length; a++)
+      outer: for (let a = 0; a < pool.length; a++) {
         for (let b = 0; b < pool.length; b++) {
           if (a === b) continue;
           const candidate =
@@ -119,9 +99,11 @@ function allocateIdentity(name, sex, family) {
             break outer;
           }
         }
+      }
     }
     if (!name) name = pool[Math.floor(Math.random() * pool.length)];
   }
+
   const identity = { name, family };
   rememberIdentity(identity);
   return identity;

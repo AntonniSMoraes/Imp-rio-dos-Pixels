@@ -161,6 +161,7 @@ let tickClock = 0,
   toastTimer,
   saveFailed = false,
   modalPerson = null,
+  isMandatoryModal = false,
   mapHits = [];
 const rand = (n) => Math.floor(Math.random() * n);
 const pick = (xs) => xs[rand(xs.length)];
@@ -284,11 +285,14 @@ function childOf(a, b) {
   return child;
 }
 
-function initial(regionKey = "north") {
+function initial(regionKey = "north", customName = null, customFamily = null) {
   seedNames([]);
+  const chosenName = customName && customName.trim() ? customName.trim() : "Aldric";
+  const chosenFamily = customFamily && customFamily.trim() ? customFamily.trim() : "Valen";
+
   const p = makePerson({
-    name: "Aldric",
-    family: "Valen",
+    name: chosenName,
+    family: chosenFamily,
     age: 24,
     sex: "M",
     rank: 0,
@@ -312,14 +316,14 @@ function initial(regionKey = "north") {
     iron: 35,
     food: 80,
     gold: 75,
-    royalTaxRate: 0.25, // Taxa feudal padrão de repasse (25%)
+    royalTaxRate: 0.25,
     people: [p],
     buildings: { home: 0, hunt: 0, fire: 0, barracks: 0, tavern: 0 },
     nodes: { wood: 700, iron: 400, food: 700 },
     logs: [
       {
         day: 1,
-        text: "Aldric estabeleceu o domínio real da Coroa em " + reg.name + ".",
+        text: p.name + " estabeleceu o domínio real da Coroa em " + reg.name + ".",
       },
     ],
     battle: null,
@@ -365,34 +369,38 @@ function migrate(old) {
   return s;
 }
 
-let state;
+let state = null;
 try {
   let data = localStorage.getItem(KEY);
-  state = data
-    ? JSON.parse(data)
-    : localStorage.getItem(LEGACY_KEY)
-      ? migrate(JSON.parse(localStorage.getItem(LEGACY_KEY)))
-      : initial("north");
-  validateSave(state);
+  if (data) {
+    state = JSON.parse(data);
+    validateSave(state);
+  } else if (localStorage.getItem(LEGACY_KEY)) {
+    state = migrate(JSON.parse(localStorage.getItem(LEGACY_KEY)));
+    validateSave(state);
+  }
 } catch {
-  state = initial("north");
+  state = null;
 }
-seedNames([...state.people, ...state.guests]);
+
+if (state) {
+  seedNames([...state.people, ...state.guests]);
+}
 
 function alive() {
-  return state.people.filter((p) => p.alive);
+  return state ? state.people.filter((p) => p.alive) : [];
 }
 function adults() {
   return alive().filter((p) => p.level >= 5);
 }
 function onMission(p) {
-  return state.battle?.active && state.battle.party.includes(p.id);
+  return Boolean(state?.battle?.active && state.battle.party.includes(p.id));
 }
 function workers(job) {
   return adults().filter((p) => p.job === job && !onMission(p));
 }
 function capacity() {
-  return 4 + state.buildings.home * 6;
+  return state ? 4 + state.buildings.home * 6 : 4;
 }
 function mentor() {
   return adults().some((p) => p.age >= 55);
@@ -400,16 +408,17 @@ function mentor() {
 
 function getTileBiome(index) {
   const seed = (index * 137 + 41) % 100;
-  if (seed < 28) return "floresta"; // +30% Madeira
-  if (seed < 54) return "lago"; // +35% Alimento
-  if (seed < 76) return "mina"; // +40% Ferro
-  return "planicie"; // Equilibrado
+  if (seed < 28) return "floresta";
+  if (seed < 54) return "lago";
+  if (seed < 76) return "mina";
+  return "planicie";
 }
 
 function getWorkerBiomeMod(p, job) {
-  const head = byId(p.houseHead) || p;
-  const tiles = head.tiles || [head.territory];
-  if (!tiles.length || tiles[0] === null) return 1.0;
+  const head = typeof byId === "function" ? byId(p.houseHead) : null;
+  const target = head || p;
+  const tiles = target.tiles || [target.territory];
+  if (!tiles.length || tiles[0] === null || tiles[0] === undefined) return 1.0;
   const biome = getTileBiome(tiles[0]);
   if (job === "wood" && biome === "floresta") return 1.35;
   if (job === "food" && biome === "lago") return 1.35;
@@ -428,18 +437,19 @@ function getYield(p, job) {
 }
 
 function getDirectLiege(p) {
-  if (!p || p.id === state.king) return null;
-  if (p.liege) return byId(p.liege) || byId(state.king);
-  const head = byId(p.houseHead);
+  if (!p || !state || p.id === state.king) return null;
+  const findP = (id) => state.people.find((x) => x.id === id);
+  if (p.liege) return findP(p.liege) || findP(state.king);
+  const head = p.houseHead ? findP(p.houseHead) : null;
   if (head && head.id !== p.id) {
     if (head.social >= 2) return head;
-    if (head.liege) return byId(head.liege) || byId(state.king);
+    if (head.liege) return findP(head.liege) || findP(state.king);
   }
-  return byId(state.king);
+  return findP(state.king);
 }
 
-// Coleta diária dividida entre tributos feudais e a cota do rei
 function processEconomyAndTaxes() {
+  if (!state) return { wood: 0, iron: 0, food: 0, gold: 0 };
   const taxRate = state.royalTaxRate || 0.25;
   const reg = REGIONS[state.region] || REGIONS.north;
   const baseYields = {
@@ -456,13 +466,10 @@ function processEconomyAndTaxes() {
     const job = p.job;
     const prod = baseYields[job] * getYield(p, job);
 
-    // O trabalhador plebeu entrega sua produção em tributo ao seu senhor direto
     const directLord = getDirectLiege(p);
     if (!directLord || directLord.id === state.king) {
-      // Trabalhador direto da Coroa: 100% entra diretamente nos cofres reais
       state[job] = (state[job] || 0) + prod;
     } else {
-      // Trabalhador sob um nobre: o nobre recebe os tributos do plebeu
       directLord.treasury = directLord.treasury || {
         wood: 0,
         iron: 0,
@@ -473,7 +480,6 @@ function processEconomyAndTaxes() {
     }
   }
 
-  // Cascata feudal: cada nobre repassa a taxa de 25% para seu suserano, até chegar na Coroa
   const lords = alive()
     .filter((p) => p.social >= 2 && p.id !== state.king)
     .sort((a, b) => a.social - b.social);
@@ -504,10 +510,10 @@ function processEconomyAndTaxes() {
 }
 
 function rates() {
+  if (!state) return { wood: 0, iron: 0, food: 0, gold: 0 };
   const pop = alive().filter(
     (p) => !getDirectLiege(p) || getDirectLiege(p).id === state.king,
   ).length;
-  // Exibição baseada no fluxo diário recebido pela Coroa
   return {
     wood: Math.max(0, (state.woodRate || 8) - state.buildings.fire * 2),
     iron: state.ironRate || 4,
@@ -517,16 +523,20 @@ function rates() {
 }
 
 function log(text) {
+  if (!state) return;
   state.logs.unshift({ day: state.day, text });
   state.logs = state.logs.slice(0, 80);
 }
 function toast(text) {
-  $("#toast").textContent = text;
-  $("#toast").classList.add("show");
+  const el = $("#toast");
+  if (!el) return;
+  el.textContent = text;
+  el.classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => $("#toast").classList.remove("show"), 3800);
+  toastTimer = setTimeout(() => el.classList.remove("show"), 3800);
 }
 function save() {
+  if (!state) return false;
   try {
     localStorage.setItem(KEY, JSON.stringify(state));
     saveFailed = false;
@@ -537,6 +547,7 @@ function save() {
   }
 }
 function date() {
+  if (!state) return "Dia 1 · Ano 1";
   return (
     "Dia " +
     (((state.day - 1) % 48) + 1) +
@@ -546,22 +557,25 @@ function date() {
 }
 
 function temperature() {
+  if (!state) return 0;
   const baseTemp = [-8, -3, -15, -26][Math.floor((state.day - 1) / 12) % 4];
   const regOffset = REGIONS[state.region]?.tempOffset || 0;
   return baseTemp + regOffset;
 }
 
 function season() {
+  if (!state) return "Degelo";
   return ["Degelo", "Sol pálido", "Geada", "Inverno profundo"][
     Math.floor((state.day - 1) / 12) % 4
   ];
 }
 function price(k) {
   const b = BUILD[k],
-    f = 1 + state.buildings[k] * 0.35;
+    f = 1 + (state?.buildings?.[k] || 0) * 0.35;
   return { wood: Math.round(b.wood * f), iron: Math.round(b.iron * f) };
 }
 function afford(p) {
+  if (!state) return false;
   return state.wood >= p.wood && state.iron >= p.iron;
 }
 function power(p) {
@@ -574,7 +588,7 @@ function power(p) {
 }
 
 function death(p, reason) {
-  if (!p.alive) return;
+  if (!p.alive || !state) return;
   p.alive = false;
   p.hp = 0;
   p.deathReason = reason;
@@ -613,7 +627,7 @@ function reveal(p) {
 }
 
 function advance() {
-  if (!alive().length) {
+  if (!state || !alive().length) {
     speed = 0;
     return;
   }
@@ -678,6 +692,7 @@ function advance() {
 }
 
 function build(k) {
+  if (!state) return;
   const cost = price(k);
   if (!afford(cost)) return toast("Faltam recursos para construir.");
   state.wood -= cost.wood;
@@ -749,6 +764,7 @@ function recruitmentGroup(n) {
   return [0, 1, 2].map(() => makePerson({ age: 3 + rand(10) }));
 }
 function callRecruitment() {
+  if (!state) return;
   if (state.guests.length)
     return toast(
       "Acolha o grupo que está aguardando antes de fazer outro chamado.",
@@ -782,7 +798,7 @@ function callRecruitment() {
   render();
 }
 function admitGuests() {
-  if (!state.guests.length) return;
+  if (!state || !state.guests.length) return;
   if (capacity() - alive().length < state.guests.length)
     return toast(
       "A família precisa de vagas para todos. Construa uma moradia.",
@@ -808,7 +824,7 @@ function ancestors(p, seen = new Set()) {
   for (const id of p.parents) {
     if (seen.has(id)) continue;
     seen.add(id);
-    const par = state.people.find((x) => x.id === id);
+    const par = state?.people.find((x) => x.id === id);
     if (par) ancestors(par, seen);
   }
   return seen;
@@ -819,7 +835,7 @@ function related(a, b) {
   return aa.has(b.id) || bb.has(a.id) || [...aa].some((id) => bb.has(id));
 }
 function hasSpouse(p) {
-  return state.people.some((x) => x.id === p.spouse && x.alive);
+  return Boolean(state?.people.some((x) => x.id === p.spouse && x.alive));
 }
 function marriageCandidates(p) {
   return adults().filter(
@@ -827,6 +843,7 @@ function marriageCandidates(p) {
   );
 }
 function marry(aId, bId) {
+  if (!state) return;
   const a = state.people.find((p) => p.id === aId),
     b = state.people.find((p) => p.id === bId);
   if (
@@ -855,7 +872,7 @@ function marry(aId, bId) {
 function setJob(p, job) {
   if (!p || p.level < 5 || !p.alive || onMission(p))
     return toast("Este cidadão não está disponível.");
-  if (job === "train" && !state.buildings.barracks)
+  if (job === "train" && !state?.buildings.barracks)
     return toast("Construa um quartel primeiro.");
   p.job = job;
   save();
@@ -863,7 +880,7 @@ function setJob(p, job) {
   refreshPersonModal();
 }
 function recruitMercenary() {
-  if (!state.buildings.tavern) return;
+  if (!state || !state.buildings.tavern) return;
   if (state.gold < 90 || alive().length >= capacity())
     return toast("É necessário 90 ouros e uma vaga.");
   state.gold -= 90;
@@ -878,6 +895,7 @@ function recruitMercenary() {
 }
 function startBattle() {
   if (
+    !state ||
     state.battle?.active ||
     selection.length !== 4 ||
     !state.buildings.barracks
@@ -902,7 +920,7 @@ function startBattle() {
   render();
 }
 function battleRound() {
-  const b = state.battle;
+  const b = state?.battle;
   if (!b?.active) return;
   const party = b.party
     .map((id) => state.people.find((p) => p.id === id))
@@ -965,6 +983,10 @@ function battleRound() {
 }
 
 function render() {
+  if (!state) {
+    $("#app").innerHTML = '<div style="display:flex;height:100vh;align-items:center;justify-content:center;color:#aec4d1;background:#0d1821;"><h1>Aguardando Criação da Dinastia...</h1></div>';
+    return;
+  }
   const r = rates(),
     king = state.people.find((p) => p.id === state.king),
     debuts = alive().filter((p) => p.debut).length;
@@ -1064,7 +1086,7 @@ function render() {
       economy: economyView,
       dynasty: dynastyView,
       army: armyView,
-      hierarchy: hierarchyView,
+      hierarchy: typeof hierarchyView === "function" ? hierarchyView : () => "",
     }[view]() +
     '</div></main><footer><span class="status">' +
     (speed === 0 ? "Ⅱ Pausado" : "▶ Tempo correndo") +
@@ -1079,10 +1101,11 @@ function render() {
 }
 
 function mapView() {
+  const kingPerson = state.people.find(p => p.id === state.king);
   return (
     '<section class="map-panel"><canvas id="map" width="640" height="400" aria-label="Mapa interativo. Clique em um cidadão para abrir sua ficha lateral." tabindex="0"></canvas><div class="map-top"><span>' +
     (REGIONS[state.region]?.name?.toUpperCase() || "NORTE GÉLIDO") +
-    '</span><span class="map-coordinate">I · VALE DE VALEN</span></div><div class="map-bottom"><span><i class="dot gold-dot"></i>Moradores <i class="dot green-dot"></i>Recursos <i class="dot red-dot"></i>Lobos</span><span>N ↑</span></div></section><aside class="inspector">' +
+    '</span><span class="map-coordinate">I · VALE DE ' + esc(kingPerson?.family?.toUpperCase() || "VALEN") + '</span></div><div class="map-bottom"><span><i class="dot gold-dot"></i>Moradores <i class="dot green-dot"></i>Recursos <i class="dot red-dot"></i>Lobos</span><span>N ↑</span></div></section><aside class="inspector">' +
     (selected.kind === "person"
       ? personPanel(state.people.find((p) => p.id === selected.id))
       : locationPanel()) +
@@ -1092,15 +1115,15 @@ function mapView() {
 function callButton() {
   return (
     '<button class="primary full" data-action="call" ' +
-    (state.day < state.nextRecruitDay || state.guests.length || !alive().length
+    (!state || state.day < state.nextRecruitDay || state.guests.length || !alive().length
       ? "disabled"
       : "") +
     '>⚑ Chamado de recrutamento</button><p class="hint">' +
-    (state.day < state.nextRecruitDay
+    (!state || state.day < state.nextRecruitDay
       ? "Novo chamado no próximo dia."
       : "Grátis · 1 chamado por dia · 50% de encontrar moradores.") +
     "</p>" +
-    (state.guests.length
+    (state?.guests?.length
       ? '<div class="notice">' +
         state.guests.length +
         ' viajantes aguardam abrigo.<button data-action="admit">Acolher grupo</button></div>'
@@ -1257,7 +1280,7 @@ function familyControls(p) {
       ? '<button class="relative" data-person="' +
         spouse.id +
         '">' +
-        portrait(spouse, "mini-portrait") +
+        (typeof portrait === "function" ? portrait(spouse, "mini-portrait") : "") +
         "<span>" +
         esc(spouse.name) +
         " " +
@@ -1376,7 +1399,7 @@ function personPanel(p, full = false) {
     " · " +
     Math.floor(p.age) +
     ' anos</span></div><div class="inspector-scroll"><div class="character-hero">' +
-    fullPortrait(p) +
+    (typeof fullPortrait === "function" ? fullPortrait(p) : "") +
     '<div class="character-summary"><span class="rank rank-' +
     p.rank +
     '">' +
@@ -1421,7 +1444,7 @@ function personPanel(p, full = false) {
         '">Promover a ' +
         SOCIAL[p.social + 1] +
         " · " +
-        promotionCost(p.social + 1) +
+        (typeof promotionCost === "function" ? promotionCost(p.social + 1) : 50) +
         " ouro</button>"
       : "") +
     familyControls(p) +
@@ -1458,7 +1481,7 @@ function peopleView() {
           '<button class="citizen-card" data-person="' +
           p.id +
           '">' +
-          portrait(p) +
+          (typeof portrait === "function" ? portrait(p) : "") +
           '<div class="citizen-info"><div><h2>' +
           esc(p.name) +
           " " +
@@ -1606,7 +1629,7 @@ function dynastyView() {
       ? '<button class="relative royal" data-person="' +
         king.id +
         '">' +
-        portrait(king) +
+        (typeof portrait === "function" ? portrait(king) : "") +
         "<span><strong>" +
         esc(king.name) +
         " " +
@@ -1633,8 +1656,8 @@ function dynastyView() {
           '<button class="relative" data-person="' +
           p.id +
           '">' +
-          portrait(p, "mini-portrait") +
-          portrait(s, "mini-portrait") +
+          (typeof portrait === "function" ? portrait(p, "mini-portrait") : "") +
+          (typeof portrait === "function" ? portrait(s, "mini-portrait") : "") +
           "<span>" +
           esc(p.name) +
           " & " +
@@ -1669,7 +1692,7 @@ function armyView() {
           " " +
           (b?.active ? "disabled" : "") +
           ">" +
-          portrait(p, "mini-portrait") +
+          (typeof portrait === "function" ? portrait(p, "mini-portrait") : "") +
           "<span>" +
           esc(p.name) +
           "<small>" +
@@ -1741,7 +1764,7 @@ function citizenPosition(p, index) {
 
 function drawMap() {
   const c = $("#map");
-  if (!c) return;
+  if (!c || !state) return;
   const g = c.getContext("2d");
   g.imageSmoothingEnabled = false;
   const W = 640,
@@ -1952,8 +1975,9 @@ function drawMap() {
 }
 
 function mapClick(e) {
-  const c = $("#map"),
-    r = c.getBoundingClientRect(),
+  const c = $("#map");
+  if (!c) return;
+  const r = c.getBoundingClientRect(),
     scale = Math.min(r.width / 640, r.height / 400),
     offsetX = (r.width - 640 * scale) / 2,
     offsetY = (r.height - 400 * scale) / 2;
@@ -1984,6 +2008,7 @@ function mapClick(e) {
   }
 }
 function openPerson(id, side = view === "map") {
+  if (!state) return;
   const p = state.people.find((x) => x.id === id);
   if (!p) return;
   p.debut = false;
@@ -2002,23 +2027,32 @@ function openPerson(id, side = view === "map") {
   }
 }
 function refreshPersonModal() {
-  if (modalPerson && $("#modal").open) {
+  if (modalPerson && $("#modal")?.open && state) {
     const p = state.people.find((x) => x.id === modalPerson);
     if (p) $("#modal").innerHTML = personPanel(p, true);
   }
 }
-function modal(title, html) {
+function modal(title, html, mandatory = false) {
   modalPerson = null;
-  $("#modal").className = "";
-  $("#modal").innerHTML =
+  isMandatoryModal = mandatory;
+  const m = $("#modal");
+  if (!m) return;
+  m.className = "";
+  const closeBtn = mandatory
+    ? ""
+    : '<button data-action="close" aria-label="Fechar">×</button>';
+  m.innerHTML =
     '<div class="modal-title"><h2>' +
     title +
-    '</h2><button data-action="close" aria-label="Fechar">×</button></div><div class="modal-content">' +
+    "</h2>" +
+    closeBtn +
+    '</div><div class="modal-content">' +
     html +
     "</div>";
-  if (!$("#modal").open) $("#modal").showModal();
+  if (!m.open) m.showModal();
 }
 function recruitmentInfo() {
+  if (!state) return;
   modal(
     "Chamado de recrutamento",
     '<p>Faça um chamado gratuito por dia. Cada grupo chega junto; uma família nunca é separada por falta de vagas.</p><div class="odds"><div><b>50%</b><span>Ninguém</span></div><div><b>35%</b><span>1 pessoa</span></div><div><b>12%</b><span>2 pessoas</span></div><div><b>3%</b><span>3 pessoas</span></div></div><ul><li><b>1:</b> homem, mulher ou criança órfã.</li><li><b>2:</b> casal, viúva e filho ou viúvo e filho.</li><li><b>3:</b> pai, mãe e filho ou três crianças órfãs.</li></ul><p>Ranks individuais: Comum 70% · Raro 20% · Épico 6% · Lendário 3,8% · Místico 0,2%.</p>' +
@@ -2033,6 +2067,7 @@ function recruitmentInfo() {
   );
 }
 function exportProgress() {
+  if (!state) return toast("Não há campanha ativa para exportar.");
   const url = URL.createObjectURL(
       new Blob([JSON.stringify(state, null, 2)], { type: "application/json" }),
     ),
@@ -2053,12 +2088,13 @@ function importProgress() {
       if (s.version === 1) s = migrate(s);
       validateSave(s);
       state = s;
-      upgradeKingdom();
+      isMandatoryModal = false;
+      if (typeof upgradeKingdom === "function") upgradeKingdom();
       seedNames([...state.people, ...state.guests]);
       speed = 0;
       selection = [];
       selected = { kind: "building", key: "pioneer" };
-      artCache.clear();
+      if (typeof artCache !== "undefined" && artCache.clear) artCache.clear();
       save();
       $("#modal").close();
       render();
@@ -2070,52 +2106,44 @@ function importProgress() {
   input.click();
 }
 
-function promptRegionSelection() {
-  let buttons = "";
+function promptRegionSelection(mandatory = false) {
+  let regionsOptions = "";
   for (const [k, reg] of Object.entries(REGIONS)) {
-    buttons +=
-      '<div style="margin-bottom:12px;padding:10px;border:1px solid #4b667a;background:#1e3446;">' +
-      "<h3>" +
-      reg.name +
-      "</h3>" +
-      '<p class="hint" style="margin:6px 0 10px;">' +
-      reg.desc +
-      "</p>" +
-      '<button class="primary full" data-select-region="' +
-      k +
-      '">Fundar vila em ' +
-      reg.name +
-      "</button>" +
-      "</div>";
+    regionsOptions +=
+      '<option value="' + k + '">' + reg.name + " (" + reg.desc.slice(0, 45) + "...)</option>";
   }
-  modal(
-    "Escolha o Território de Início",
-    "<p>Cada região possui latitude, clima, biotipo populacional e modificadores econômicos próprios:</p>" +
-      buttons,
-  );
+
+  const defaultFirstName = typeof getRandomPresetName === "function" ? getRandomPresetName("M") : "Aldric";
+  const defaultFamilyName = typeof getRandomPresetFamily === "function" ? getRandomPresetFamily() : "Valen";
+
+  const html =
+    '<div class="monarch-setup" style="display:flex;flex-direction:column;gap:12px;">' +
+      '<div>' +
+        '<label style="display:block;margin-bottom:4px;font-weight:bold;">Região de Início:</label>' +
+        '<select id="setup-region" style="width:100%;padding:8px;background:#1e3446;color:#dfebdf;border:1px solid #4b667a;">' + regionsOptions + '</select>' +
+      '</div>' +
+      '<div>' +
+        '<label style="display:block;margin-bottom:4px;font-weight:bold;">Primeiro Nome do Monarca:</label>' +
+        '<input type="text" id="setup-monarch-name" value="' + defaultFirstName + '" maxlength="20" style="width:100%;padding:8px;box-sizing:border-box;background:#1e3446;color:#dfebdf;border:1px solid #4b667a;">' +
+      '</div>' +
+      '<div>' +
+        '<label style="display:block;margin-bottom:4px;font-weight:bold;">Sobrenome / Dinastia Real:</label>' +
+        '<input type="text" id="setup-monarch-family" value="' + defaultFamilyName + '" maxlength="20" style="width:100%;padding:8px;box-sizing:border-box;background:#1e3446;color:#dfebdf;border:1px solid #4b667a;">' +
+      '</div>' +
+      '<div style="display:flex;gap:8px;margin-top:8px;">' +
+        '<button type="button" data-action="reroll-monarch-names" style="flex:1;">Sortear Nomes</button>' +
+        '<button type="button" class="primary" data-action="confirm-founding" style="flex:2;">Fundar Reino</button>' +
+      '</div>' +
+    '</div>';
+
+  modal("Fundação da Dinastia", html, mandatory);
 }
 
 document.addEventListener("click", (e) => {
   if (e.target.id === "map") return mapClick(e);
   const b = e.target.closest("button");
   if (!b) return;
-  if (b.dataset.selectRegion) {
-    const regionKey = b.dataset.selectRegion;
-    state = initial(regionKey);
-    upgradeKingdom();
-    speed = 0;
-    selection = [];
-    view = "map";
-    selected = { kind: "building", key: "pioneer" };
-    artCache.clear();
-    save();
-    $("#modal").close();
-    render();
-    toast(
-      "Vila pioneira fundada em " + (REGIONS[regionKey]?.name || "Norte") + "!",
-    );
-    return;
-  }
+
   if (b.dataset.view) {
     view = b.dataset.view;
     render();
@@ -2140,7 +2168,7 @@ document.addEventListener("click", (e) => {
     return;
   }
   if (b.dataset.promote) {
-    promotionDialog(b.dataset.promote);
+    if (typeof promotionDialog === "function") promotionDialog(b.dataset.promote);
     return;
   }
   if (b.dataset.worker) {
@@ -2158,6 +2186,7 @@ document.addEventListener("click", (e) => {
   }
   const action = b.dataset.action;
   if (action === "close") {
+    if (isMandatoryModal) return;
     $("#modal").close();
     modalPerson = null;
   }
@@ -2176,7 +2205,7 @@ document.addEventListener("click", (e) => {
   }
   if (action === "recruit-info") recruitmentInfo();
   if (action === "dismiss-legacy") {
-    state.legacy = false;
+    if (state) state.legacy = false;
     save();
     render();
   }
@@ -2187,7 +2216,7 @@ document.addEventListener("click", (e) => {
     save();
     render();
   }
-  if (action === "retreat" && state.battle?.active) {
+  if (action === "retreat" && state?.battle?.active) {
     state.battle.active = false;
     state.battle.logs.unshift(
       "A patrulha recuou. Sobreviventes retornaram sem recompensas.",
@@ -2200,7 +2229,7 @@ document.addEventListener("click", (e) => {
     modal(
       "Crônicas do império",
       '<div class="chronicles">' +
-        state.logs
+        (state?.logs || [])
           .map(
             (l) => "<p><time>Dia " + l.day + "</time>" + esc(l.text) + "</p>",
           )
@@ -2226,7 +2255,34 @@ document.addEventListener("click", (e) => {
       '<p>Comece com um pioneiro solteiro e apenas sua cabana. O progresso atual será substituído; você pode exportá-lo antes.</p><button data-action="export">Exportar campanha atual</button><button class="primary" data-action="confirm-reset">Escolher Região e Começar</button>',
     );
   if (action === "confirm-reset") {
-    promptRegionSelection();
+    promptRegionSelection(false);
+    return;
+  }
+  if (action === "reroll-monarch-names") {
+    const inputName = $("#setup-monarch-name");
+    const inputFam = $("#setup-monarch-family");
+    if (inputName && typeof getRandomPresetName === "function") inputName.value = getRandomPresetName("M");
+    if (inputFam && typeof getRandomPresetFamily === "function") inputFam.value = getRandomPresetFamily();
+    return;
+  }
+  if (action === "confirm-founding") {
+    const regionKey = $("#setup-region")?.value || "north";
+    const monarchName = $("#setup-monarch-name")?.value || "Aldric";
+    const monarchFamily = $("#setup-monarch-family")?.value || "Valen";
+
+    state = initial(regionKey, monarchName, monarchFamily);
+    isMandatoryModal = false;
+    if (typeof upgradeKingdom === "function") upgradeKingdom();
+    seedNames([...state.people, ...state.guests]);
+    speed = 0;
+    selection = [];
+    view = "map";
+    selected = { kind: "building", key: "pioneer" };
+    if (typeof artCache !== "undefined" && artCache.clear) artCache.clear();
+    save();
+    $("#modal").close();
+    render();
+    toast("Casa " + esc(state.people[0].family) + " fundada em " + (REGIONS[regionKey]?.name || "Norte") + "!");
     return;
   }
   if (action === "help") {
@@ -2250,13 +2306,33 @@ document.addEventListener("click", (e) => {
         "<li><b>Aposentadoria:</b> Nobres com 60+ anos podem abdicar e passam a se chamar <i>Nobres Aposentados</i>, mantendo suas consortes e concubinas vinculadas.</li>" +
         "<li><b>População e Memorial:</b> Moradores casados exibem o retrato do cônjuge e o contador de concubinas no card. Cidadãos falecidos são movidos para o Memorial dos Falecidos com a causa exata da morte.</li>" +
       "</ol>" +
-      "<p class='hint'>▶ Velocidade normal (1 dia / 5s) · 3× Acelerar · Ⅱ Pausar · ↦ Avançar um dia. Crianças atingem maioridade aos 16 dias. Trabalhadores fora do abrigo precisam de fogueiras acesas para sobreviver ao frio.</p>"
+      "<p class='hint'>▶ Velocidade normal (1 dia / 5s) · 3× Acelerar · Ⅱ Pausar · ↦ Avançar um dia. Crianças atingem maioridade aos 16 dias. Trabalhadores fora do abrigo precisam de fogueiras acesas para sobreviver ao frio.</p>",
     );
   }
 });
 
+window.addEventListener(
+  "keydown",
+  (e) => {
+    if (e.key === "Escape" && isMandatoryModal) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  },
+  true,
+);
+
+const modalEl = $("#modal");
+if (modalEl) {
+  modalEl.addEventListener("cancel", (e) => {
+    if (isMandatoryModal) {
+      e.preventDefault();
+    }
+  });
+}
+
 document.addEventListener("change", (e) => {
-  if (e.target.dataset.job)
+  if (e.target.dataset.job && state)
     setJob(
       state.people.find((p) => p.id === e.target.dataset.job),
       e.target.value,
@@ -2375,7 +2451,7 @@ function loop(time) {
   const delta = Math.min(time - lastTime, 1000);
   lastTime = time;
   anim = time;
-  if (!document.hidden && !$("#modal").open) {
+  if (!document.hidden && !$("#modal")?.open && state) {
     if (speed) {
       tickClock += delta * speed;
       if (tickClock >= 5000) {
@@ -2391,4 +2467,13 @@ function loop(time) {
       drawMap();
   }
   requestAnimationFrame(loop);
+}
+
+// Inicia loop
+requestAnimationFrame(loop);
+
+// Dispara tela inicial se não houver jogo salvo
+if (!state) {
+  render();
+  setTimeout(() => promptRegionSelection(true), 10);
 }

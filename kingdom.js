@@ -16,14 +16,14 @@ let familySortMode = 'social';
 let editBorderMode = false;
 let selectedBorderNoble = null;
 
-const byId = function(id) { return state.people.find(function(p) { return p.id === id; }); };
+const byId = function(id) { return state ? state.people.find(function(p) { return p.id === id; }) : null; };
 const adult = function(p) { return p && p.alive && p.level >= 5 && p.age >= 18; };
 const headOf = function(p) { return byId(p.houseHead) || p; };
-const isHead = function(p) { return Boolean(p && !byId(p.unionHead)?.alive && (p.id === state.king || p.houseHead === p.id)); };
+const isHead = function(p) { return Boolean(p && !byId(p.unionHead)?.alive && (p.id === state?.king || p.houseHead === p.id)); };
 const partners = function(p) { return (p.partners || []).map(function(x) { return byId(x.id); }).filter(function(p) { return p?.alive; }); };
 
 function isRoyalFamilyMember(p) {
-  if (!p) return false;
+  if (!p || !state) return false;
   if (p.id === state.king) return true;
   const king = byId(state.king);
   return partners(king).some(function(x) { return x.id === p.id; });
@@ -36,7 +36,7 @@ function getSpousePartner(p) {
 }
 
 function getEffectiveTier(p) {
-  if (!p) return 0;
+  if (!p || !state) return 0;
   if (p.id === state.king) return 8;
   let tier = p.social;
   if (p.unionHead && byId(p.unionHead)?.alive) {
@@ -50,7 +50,7 @@ function getEffectiveTier(p) {
 }
 
 function title(p) {
-  if (!p) return '';
+  if (!p || !state) return '';
   if (p.id === state.king) return p.sex === 'F' ? 'Rainha' : 'Rei';
   if (p.retired) return 'Nobre Aposentado';
 
@@ -96,7 +96,7 @@ function title(p) {
 }
 
 function getRoyalDomainName() {
-  const count = (state.royalLands || []).length;
+  const count = (state?.royalLands || []).length;
   if (count >= 128) return 'Ducado da Capital';
   if (count >= 32) return 'Marquesado da Capital';
   if (count >= 16) return 'Condado da Capital';
@@ -110,7 +110,10 @@ function promotionCost(tier) {
 }
 
 function ensurePerson(p) {
-  p.partners = p.partners || (p.spouse ? [{ id: p.spouse, role: 'consorte', day: state.day }] : []);
+  const isKing = state?.king ? p.id === state.king : true;
+  const currentDay = state?.day || 1;
+
+  p.partners = p.partners || (p.spouse ? [{ id: p.spouse, role: 'consorte', day: currentDay }] : []);
   p.liege = p.liege || null;
   p.promotedAt = p.promotedAt || 0;
   p.order = p.order || 'idle';
@@ -124,9 +127,9 @@ function ensurePerson(p) {
   p.hairstyle = p.hairstyle !== undefined ? p.hairstyle : p.genes.style;
   delete p.origins.style;
   p.appearance = p.appearance || { face: rand(4), build: rand(3) };
-  p.source = p.source || { type: p.id === state.king ? 'founder' : 'legacy', day: state.day };
+  p.source = p.source || { type: isKing ? 'founder' : 'legacy', day: currentDay };
   p.treasury = p.treasury || { wood: 0, iron: 0, food: 0, gold: 0 };
-  if (p.barbarian && !p.parents.length && p.source.type === 'birth') p.source = { type: 'adult', day: state.day };
+  if (p.barbarian && !p.parents.length && p.source.type === 'birth') p.source = { type: 'adult', day: currentDay };
   if (adult(p) && !p.adultTraitsSet) {
     if (Math.random() < 0.14) p.traits.push('sexy');
     if (Math.random() < 0.2) p.traits.push('pragmático');
@@ -136,7 +139,7 @@ function ensurePerson(p) {
 }
 
 function updateHouseholdLeadership(a, b) {
-  if (!a || !b) return;
+  if (!a || !b || !state) return;
   let superior = a;
   let inferior = b;
   if (b.id === state.king || b.social > a.social) {
@@ -174,6 +177,7 @@ function promoteSuccessorConcubine(head) {
 }
 
 function upgradeKingdom() {
+  if (!state) return;
   const old = !state.feudalVersion;
   if (old) {
     try { localStorage.setItem(KEY + '-antes-do-conselho', JSON.stringify(state)); } catch(e) {}
@@ -216,16 +220,16 @@ function upgradeKingdom() {
 const originalMake = makePerson;
 makePerson = function(opts) {
   const p = originalMake(opts);
-  ensurePerson(p);
   p.genes.texture = rand(4);
   p.hairstyle = rand(4);
-  p.source = { type: 'birth', day: typeof state === 'undefined' ? 1 : (state?.day || 1) };
+  ensurePerson(p);
   return p;
 };
 
 const originalInitial = initial;
-initial = function(regionKey = 'central') {
-  const s = originalInitial(regionKey);
+initial = function(...args) {
+  const s = originalInitial(...args);
+  const regionKey = args[0] || 'north';
   s.people[0].social = 8;
   s.people[0].houseHead = s.people[0].id;
   s.people[0].source = { type: 'founder', day: 1 };
@@ -250,7 +254,7 @@ childOf = function(a, b) {
   p.hairstyle = rand(4);
   const headParent = a.social >= b.social ? headOf(a) : headOf(b);
   p.houseHead = headParent.id;
-  p.source = { type: 'birth', day: state.day };
+  p.source = { type: 'birth', day: state?.day || 1 };
   p.traits = [];
   if ((a.traits.includes('elitista') || b.traits.includes('elitista')) ? Math.random() < 0.8 : (headOf(a).social >= 2 || headOf(b).social >= 2) && Math.random() < 0.25) {
     p.traits.push('elitista');
@@ -265,14 +269,14 @@ childOf = function(a, b) {
 const originalRecruitGroup = recruitmentGroup;
 recruitmentGroup = function(n) {
   const group = originalRecruitGroup(n);
-  const familyGroup = group.some(function(p) { return p.spouse || p.partners.length || p.parents.length; });
+  const familyGroup = group.some(function(p) { return p.spouse || p.partners?.length || p.parents.length; });
   const batch = crypto.randomUUID();
   for (const p of group) {
     ensurePerson(p);
     if (p.spouse && !p.partners.some(function(r) { return r.id === p.spouse; })) {
-      p.partners.push({ id: p.spouse, role: 'consorte', day: state.day });
+      p.partners.push({ id: p.spouse, role: 'consorte', day: state?.day || 1 });
     }
-    p.source = { type: familyGroup ? 'family' : (p.level < 5 ? 'orphan' : 'adult'), day: state.day, batch: batch };
+    p.source = { type: familyGroup ? 'family' : (p.level < 5 ? 'orphan' : 'adult'), day: state?.day || 1, batch: batch };
   }
   const families = [...new Set(group.map(function(p) { return p.family; }))];
   for (const name of families) {
@@ -303,8 +307,8 @@ function domainPeople(p) {
   return alive().filter(function(x) { return heads.has(x.id) || heads.has(x.houseHead); });
 }
 
-// Processa o preenchimento contínuo para cavaleiros e barões com vagas abertas
 function processAutonomousLordsRecruitment() {
+  if (!state) return;
   const lords = alive().filter(p => p.social === 2 || p.social === 3);
   for (const lord of lords) {
     const currentSubordinates = direct(lord);
@@ -362,6 +366,7 @@ function processAutonomousLordsRecruitment() {
 }
 
 function attachWaitingVassals() {
+  if (!state) return;
   for (let t = 2; t <= 7; t++) {
     const waiting = alive().filter(function(p) { return p.social === t && p.id !== state.king; }).sort(function(a, b) { return a.promotedAt - b.promotedAt; });
     for (const lord of waiting) {
@@ -436,8 +441,8 @@ function areTilesConnected(tiles) {
   return visited.size === tiles.length;
 }
 
-// Busca cluster a partir de um bloco mantendo as terras prévias válidas
 function getClusterFromTile(startTile, size, currentPersonTiles = []) {
+  if (!state) return null;
   const royalSet = new Set(state.royalLands || []);
   const currentSet = new Set(currentPersonTiles);
   const occupied = new Set();
@@ -453,7 +458,6 @@ function getClusterFromTile(startTile, size, currentPersonTiles = []) {
   if ((!royalSet.has(startTile) && !currentSet.has(startTile)) || occupied.has(startTile) || startTile === startSeat) return null;
   if (size === 1) return [startTile];
 
-  // Se o personagem já tiver terras, usa-as como base inicial
   const current = currentSet.has(startTile) ? [...currentPersonTiles] : [startTile];
   const queue = [...current];
   const visited = new Set(current);
@@ -479,12 +483,11 @@ function getClusterFromTile(startTile, size, currentPersonTiles = []) {
   return current.length === size && areTilesConnected(current) ? current : null;
 }
 
-// Opções de terra considerando que as terras que o personagem já possui contam como válidas
 function getAvailableConnectedClusters(size, targetPerson = null) {
+  if (!state) return [];
   const royalSet = new Set(state.royalLands || []);
   const startSeat = (REGIONS[state.region]?.seat !== undefined) ? REGIONS[state.region].seat : 240;
   const currentPersonTiles = targetPerson ? (targetPerson.tiles || [targetPerson.territory]).filter(t => t !== null && t !== undefined) : [];
-  const currentSet = new Set(currentPersonTiles);
 
   const occupiedByOthers = new Set();
   alive().forEach(function(p) {
@@ -503,7 +506,6 @@ function getAvailableConnectedClusters(size, targetPerson = null) {
   }
 
   const clusters = [];
-  // Prioriza expandir a partir das terras que ele já tem
   const searchStarts = currentPersonTiles.length ? currentPersonTiles.concat(availableInDomain) : availableInDomain;
 
   for (const start of searchStarts) {
@@ -520,6 +522,7 @@ function getAvailableConnectedClusters(size, targetPerson = null) {
 }
 
 function buyLand(index) {
+  if (!state) return;
   if (state.gold < 45) return toast('Ouro insuficiente para comprar este território (Custo: 45 ouro).');
   state.royalLands = state.royalLands || [];
   if (state.royalLands.includes(index)) return toast('Este território já faz parte do seu domínio.');
@@ -567,7 +570,6 @@ function grantPromotion(p, tiles) {
 
   log('Decreto real: ' + p.name + ' recebeu o título de ' + title(p) + ' por ' + cost + ' ouro.');
 
-  // 1. Ao virar Cavaleiro (social 2): recruta imediatamente até 4 soldados
   if (next === 2) {
     const preferredSex = p.sex;
     const pool = adults().filter(function(x) {
@@ -596,7 +598,6 @@ function grantPromotion(p, tiles) {
     }
   }
 
-  // 2. Ao virar Barão/Baronesa (social 3): recruta e promove imediatamente até 4 cavaleiros
   if (next === 3) {
     let pool = adults().filter(function(x) {
       return x.id !== state.king && x.id !== p.id && x.social === 1 && !byId(x.unionHead)?.alive && !onMission(x) && !isRoyalFamilyMember(x);
@@ -677,6 +678,7 @@ function setOrder(p, order) {
 }
 
 function effectiveLord(p) {
+  if (!state) return null;
   let h = headOf(p);
   if (h.id === state.king) return null;
   if (h.social === 0) return null;
@@ -695,6 +697,7 @@ function breedingStatus(p) {
   if (p.sex !== 'F') return 'Nascimentos acompanhados na ficha da parceira';
   if (p.age >= 55) return 'Fora da idade fértil';
   if (!partners(p).some(function(x) { return adult(x) && x.sex === 'M' && x.age < 55; })) return 'Sem parceiro fértil';
+  if (!state) return '';
   if (state.day - p.lastBirth < 32) return 'Recuperação: ' + Math.ceil(32 - state.day + p.lastBirth) + ' dias';
   if (alive().length >= capacity()) return 'Aguardando moradia';
   if (state.food < alive().length * 0.65 + 5) return 'Alimento insuficiente';
@@ -702,7 +705,7 @@ function breedingStatus(p) {
 }
 
 function birthCycle() {
-  if (state.day % 4) return;
+  if (!state || state.day % 4) return;
   const moms = adults().filter(function(p) {
     return p.sex === 'F' && p.age >= 18 && p.age < 55 && state.day - p.lastBirth >= 32 && partners(p).some(function(x) { return adult(x) && x.sex === 'M' && x.age < 55; });
   }).sort(function(a, b) { return (a.lastBirth - b.lastBirth) || a.id.localeCompare(b.id); });
@@ -741,6 +744,7 @@ marriageCandidates = function(p) { return adults().filter(function(x) { return c
 hasSpouse = function(p) { return partners(p).length > 0; };
 
 function pruneProposals() {
+  if (!state) return;
   const king = byId(state.king);
   state.proposals = (state.proposals || []).filter(function(x) {
     const target = byId(x.person);
@@ -773,6 +777,7 @@ function unite(a, b) {
 }
 
 function repairRelationships() {
+  if (!state) return;
   if (state.relationshipVersion === 2) {
     for (const p of alive()) {
       if (!p.unionHead && p.houseHead !== p.id && partners(p).some(function(x) { return x.id === p.houseHead; })) p.unionHead = p.houseHead;
@@ -856,6 +861,7 @@ marry = function(aId, bId) {
 };
 
 function politicalCycle() {
+  if (!state) return;
   pruneProposals();
   if (state.day % 12) return;
   const candidates = adults().filter(function(p) { return p.age >= 18 && !p.retired; });
@@ -999,6 +1005,7 @@ death = function(p, reason) {
 };
 
 function autonomousLordManagement() {
+  if (!state) return;
   const lords = alive().filter(p => p.social >= 2 && p.id !== state.king);
   for (const lord of lords) {
     const domainWorkers = alive().filter(p => p.id !== lord.id && (headOf(p).id === lord.id || p.liege === lord.id) && adult(p) && !onMission(p) && p.jobMode !== 'manual');
@@ -1020,6 +1027,7 @@ function autonomousLordManagement() {
 }
 
 function governmentCycle() {
+  if (!state) return;
   for (const p of alive()) {
     ensurePerson(p);
     if (p.social >= 3) {
@@ -1305,6 +1313,7 @@ function vassalTree(p, seen) {
 }
 
 function hierarchyView() {
+  if (!state) return '';
   const commoners = adults().filter(function(p) { return p.social === 0 && !isRoyalFamilyMember(p); });
   let body = '<div class="view-tools"><p class="hint">Apenas a Coroa concede novos títulos. Herdeiros recebem títulos existentes.</p><button data-action="kingdom-rules">Regras desta versão</button></div>';
   body += '<ul class="vassal-tree">' + vassalTree(byId(state.king)) + '</ul>';
@@ -1319,9 +1328,10 @@ function hierarchyView() {
 }
 
 function proposalsView() {
+  if (!state) return '';
   pruneProposals();
   let body = '<section class="panel"><div class="panel-title"><h2>Propostas de Casamento à Coroa</h2></div><div class="panel-body">';
-  const items = state.proposals.map(function(x) {
+  const items = (state.proposals || []).map(function(x) {
     const p = byId(x.person);
     if (!p || !p.alive) return '';
     return '<div class="proposal-card">' + personLink(p) + '<p>' + esc(x.role) + ' · potencial ' + RANKS[p.rank] + ' · ' + (p.traits.map(esc).join(', ') || 'sem traços especiais') + '</p><button data-accept-proposal="' + x.id + '" class="primary">Aceitar Casamento</button> <button data-reject-proposal="' + x.id + '">Recusar</button></div>';
@@ -1332,6 +1342,7 @@ function proposalsView() {
 
 const oldDynasty = dynastyView;
 dynastyView = function() {
+  if (!state) return '';
   const women = alive().filter(function(p) { return p.sex === 'F'; });
   let body = '<div class="subtabs"><button data-view="hierarchy">Hierarquia de vassalos</button><button data-action="kingdom-rules">Regras</button></div>' + proposalsView();
   body += '<section class="panel section-space"><div class="panel-title"><h2>Nascimentos · diagnóstico por família</h2></div><div class="panel-body">';
@@ -1345,6 +1356,7 @@ dynastyView = function() {
 };
 
 familyControls = function(p) {
+  if (!state) return '';
   const children = state.people.filter(function(x) { return x.parents.includes(p.id); });
   const candidates = marriageCandidates(p);
   const nextRole = partners(p).length === 0 ? 'consorte' : 'concubina(o)';
@@ -1385,7 +1397,7 @@ familyControls = function(p) {
 const oldTraitRows = traitRows;
 traitRows = function(p) {
   const base = oldTraitRows(p).replace(/<div class="trait"><span>Tipo<\/span>[\s\S]*?<\/div>/, '');
-  const textureOrigin = byId(p.origins.texture);
+  const textureOrigin = byId(p.origins?.texture);
   const textureHtml = '<div class="trait"><span>Textura do cabelo</span><b>' + TEXTURES[p.genes.texture] + '</b>' + (textureOrigin ? '<small>de ' + esc(textureOrigin.name) + '</small>' : '') + '</div>';
   return base + textureHtml;
 };
@@ -1405,12 +1417,14 @@ const oldMapClick = mapClick;
 const oldMapView = mapView;
 
 mapView = function() {
+  if (!state) return '';
   if (mapMode === 'village') return '<div class="realm-switch"><button data-map-mode="realm">← Atlas do reino</button></div>' + oldMapView();
   let panelHtml = selected.kind === 'person' ? personPanel(byId(selected.id)) : (selected.kind === 'region' ? regionPanel(selected.index) : locationPanel());
   return '<section class="realm-surface"><div class="realm-toolbar"><span>' + (pendingLand ? 'SELECIONE O TERRITÓRIO PARA A PROMOÇÃO' : 'CARTA DE PANGEIA · ' + (state.royalLands || []).length + ' vilas reais (' + getRoyalDomainName() + ')') + '</span><button data-toggle-border-edit="true" class="' + (editBorderMode ? 'primary' : '') + '">' + (editBorderMode ? 'Sair da Edição' : 'Edição de Fronteiras') + '</button><button data-map-mode="village">Inspecionar vila pioneira</button><button data-realm-zoom="1">+</button><button data-realm-zoom="-1">−</button></div><div class="realm-scroll"><canvas id="realm-map" width="1312" height="672" aria-label="Mapa orgânico de Pangeia"></canvas></div><div class="map-biome-legend" style="background:#142332;padding:6px 14px;border-top:1px solid #4b667a;display:flex;gap:18px;font-size:11px;color:#d5ded7;align-items:center;"><span><b>Legenda dos Biomas:</b></span><span>🌲 Floresta (+35% Lenha)</span><span>🌊 Oceano Costeiro (+35% Alimento)</span><span>⛰️ Serra/Montanha (+40% Ferro)</span><span>🌾 Planície Fértil (Padrão)</span></div></section><aside class="inspector">' + panelHtml + '</aside>';
 };
 
 function regionPanel(index) {
+  if (!state) return '';
   const isRoyal = (state.royalLands || []).includes(index);
   const owner = alive().find(function(p) {
     return p.social >= 2 && p.id !== state.king && (p.tiles || [p.territory]).includes(index);
@@ -1475,6 +1489,7 @@ function computeBiomeClusters() {
 }
 
 drawMap = function() {
+  if (!state) return;
   if (mapMode === 'village') return oldDrawMap();
   const c = $('#realm-map');
   if (!c) return;
@@ -1562,7 +1577,6 @@ drawMap = function() {
   g.textAlign = 'left';
   g.textBaseline = 'alphabetic';
 
-  // Demarcação Dourada das Terras Reais
   const royal = state.royalLands || [];
   g.fillStyle = 'rgba(212, 175, 55, 0.28)';
   g.strokeStyle = '#996515';
@@ -1575,7 +1589,6 @@ drawMap = function() {
     g.strokeRect(rx + 1, ry + 1, 38, 38);
   }
 
-  // Demarcação dos Feudos dos Nobres
   const nobles = alive().filter(function(p) { return p.id !== state.king && p.social >= 2 && ((p.tiles && p.tiles.length) || p.territory !== null); });
   for (const p of nobles) {
     const tiles = p.tiles || [p.territory];
@@ -1603,7 +1616,6 @@ drawMap = function() {
     }
   }
 
-  // Destaque em tempo real do feudo pré-selecionado no modal de promoção
   const previewCluster = $('#promotion-land-cluster')?.value;
   if (previewCluster) {
     const tList = previewCluster.split(',').map(Number);
@@ -1846,10 +1858,16 @@ document.addEventListener('change', function(e) {
   }
 });
 
-NAV.push(['hierarchy', '♜', 'Hierarquia']);
+if (!NAV.some(item => item[0] === 'hierarchy')) {
+  NAV.push(['hierarchy', '♜', 'Hierarquia']);
+}
 
 const baseRender = render;
 render = function() {
+  if (!state) {
+    baseRender();
+    return;
+  }
   const sc = $('.realm-scroll');
   const ws = $('.workspace');
   const ix = $('.inspector-scroll');
@@ -1913,7 +1931,7 @@ setJob = function(p, job) {
     return;
   }
   if (!Object.hasOwn(JOBS, job)) return;
-  if (job === 'train' && !state.buildings.barracks) return toast('Construa um quartel primeiro.');
+  if (job === 'train' && !state?.buildings.barracks) return toast('Construa um quartel primeiro.');
   p.jobMode = 'manual';
   automaticSetJob(p, job);
 };
@@ -1974,9 +1992,10 @@ document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') releaseControl();
 }, true);
 
-upgradeKingdom();
-save();
-render();
-loadAnimeArt();
-requestAnimationFrame(loop);
+if (state) {
+  upgradeKingdom();
+  save();
+  render();
+}
+if (typeof loadAnimeArt === 'function') loadAnimeArt();
 window.addEventListener('beforeunload', save);
