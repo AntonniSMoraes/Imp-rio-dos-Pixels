@@ -586,7 +586,7 @@ function grantPromotion(p, tiles) {
     const chosen = pool.slice(0, 4);
     for (const v of chosen) {
       v.social = 1;
-      v.liege = p.id;
+      v.liege = lord.id;
       v.promotedAt = state.promotionSequence++;
       v.houseHead = v.id;
       for (const f of alive()) {
@@ -1908,7 +1908,7 @@ render = function() {
   const chatLogs = (state.logs || []).slice(0, 16).map(function(l) {
     return '<p style="padding:4px 0;border-top:1px solid #415360;margin:0;"><time style="color:#c9b681;margin-right:6px;">D' + l.day + '</time>' + esc(l.text) + '</p>';
   }).join('');
-  chatBox.innerHTML = '<summary style="padding:8px;cursor:pointer;color:var(--gold);font-weight:600;">Crônicas do Reino (Logs)</summary><div style="max-height:160px;overflow:auto;padding:0 10px 8px;display:flex;flex-direction:column-reverse;">' + chatLogs + '</div>';
+  chatBox.innerHTML = '<summary style="padding:8px;cursor:pointer;color:var(--gold);font-weight:600;">Crônicas do Reino (Logs)</summary><div style="max-height:160px;overflow:auto;padding:0 10px 8px;display:flex;flex-direction:column;">' + chatLogs + '</div>';
 
   ['.realm-scroll', '.workspace', '.inspector-scroll'].forEach(function(selector, i) {
     const el = $(selector);
