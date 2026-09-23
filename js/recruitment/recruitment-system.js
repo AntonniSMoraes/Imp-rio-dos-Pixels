@@ -5,11 +5,19 @@ function rollRecruitCount() {
   return roll < 0.5 ? 0 : roll < 0.85 ? 1 : roll < 0.97 ? 2 : 3;
 }
 
+function recruitRacialTraveler(person) {
+  if (!person || Math.random() >= 0.08) return person;
+  const race = pick(["elf", "dwarf"]);
+  person.race = race;
+  person.racialTraits = [...(RACES[race]?.traits || [])];
+  return person;
+}
+
 function recruitmentGroup(count) {
   if (!count) return [];
   if (count === 1) {
     const type = rand(3);
-    return [makePerson({ age: type === 2 ? 3 + rand(10) : 18 + rand(24), sex: type === 0 ? "M" : type === 1 ? "F" : pick(["M", "F"]) })];
+    return [recruitRacialTraveler(makePerson({ age: type === 2 ? 3 + rand(10) : 18 + rand(24), sex: type === 0 ? "M" : type === 1 ? "F" : pick(["M", "F"]) }))];
   }
   if (count === 2) {
     const type = rand(3);
