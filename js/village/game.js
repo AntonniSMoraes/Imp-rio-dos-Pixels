@@ -63,6 +63,8 @@ try {
 }
 
 if (state) {
+  state.people.forEach(ensureRaceData);
+  state.guests.forEach(ensureRaceData);
   seedNames([...state.people, ...state.guests]);
 }
 

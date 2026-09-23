@@ -115,3 +115,10 @@ const RACIAL_TRAITS = [
   "territorialista",
   "artesão",
 ];
+
+function ensureRaceData(person) {
+  person.race = person.race || "human";
+  person.caste = person.caste || null;
+  person.racialTraits = Array.isArray(person.racialTraits) ? person.racialTraits : [];
+  return person;
+}
