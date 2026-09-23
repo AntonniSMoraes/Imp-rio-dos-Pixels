@@ -101,6 +101,7 @@ function childOf(firstParent, secondParent) {
     parents: [firstParent.id, secondParent.id],
   });
   Object.assign(child, inheritGenes(firstParent, secondParent));
+  Object.assign(child, inheritRaceData(firstParent, secondParent));
 
   if (Math.random() < 0.5) {
     const bestAttributes = Object.keys(child.attrs)
