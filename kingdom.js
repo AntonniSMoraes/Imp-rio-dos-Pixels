@@ -1,12 +1,5 @@
 'use strict';
 // Government is a persisted tree of individual title holders, independent of genealogy.
-const LORD_CAP = { 2: 4, 3: 4, 4: 2, 5: 2, 6: 2, 7: 4, 8: Infinity };
-const LAND_SIZE = { 2: 1, 3: 4, 4: 8, 5: 16, 6: 32, 7: 128, 8: 512 };
-const LAND_NAME = { 2: 'Vila', 3: 'Baronato', 4: 'Viscondado', 5: 'Condado', 6: 'Marquesado', 7: 'Ducado', 8: 'Capital' };
-const FEMALE_TITLES = { 0: 'Plebeia', 1: 'Soldada', 2: 'Cavaleira', 3: 'Baronesa', 4: 'Viscondessa', 5: 'Condessa', 6: 'Marquesa', 7: 'Duquesa', 8: 'Rainha' };
-const MALE_TITLES = { 0: 'Plebeu', 1: 'Soldado', 2: 'Cavaleiro', 3: 'Barão', 4: 'Visconde', 5: 'Conde', 6: 'Marquês', 7: 'Duque', 8: 'Rei' };
-const ORDERS = { idle: 'Aguardar ordens', balance: 'Equilibrar estoques', wood: 'Coletar lenha', iron: 'Minerar', food: 'Caçar / pescar', raid: 'Fazer raids' };
-const TEXTURES = ['Liso', 'Ondulado', 'Cacheado', 'Crespo'];
 let peopleTab = 'all', mapMode = 'realm', pendingLand = null, realmZoom = 1, realmHits = [];
 let collapsedLords = new Set();
 let collapsedFamilies = new Set();
