@@ -3,6 +3,7 @@
 const artCache = new Map(),
   animeTiles = new Map();
 let animeAtlas = null,
+  raceAtlases = new Map(),
   rankAtlas = null,
   animeLoadError = false;
 const ANIME_ROWS = [
@@ -30,8 +31,8 @@ function pixelHSV(r, g, b) {
   }
   return [h, max ? d / max : 0, max / 255];
 }
-function prepareAnimeTile(row, col) {
-  const key = row + ":" + col;
+function prepareAnimeTile(row, col, atlas = animeAtlas, atlasKey = "human") {
+  const key = atlasKey + ":" + row + ":" + col;
   if (animeTiles.has(key)) return animeTiles.get(key);
   const [start, end] = ANIME_ROWS[row],
     w = 256,
@@ -40,7 +41,7 @@ function prepareAnimeTile(row, col) {
   c.width = w;
   c.height = h;
   const g = c.getContext("2d", { willReadFrequently: true });
-  g.drawImage(animeAtlas, col * 256, start, w, h, 0, 0, w, h);
+  g.drawImage(atlas, col * 256, start, w, h, 0, 0, w, h);
   const img = g.getImageData(0, 0, w, h),
     data = img.data,
     hair = [],
@@ -283,11 +284,13 @@ function prepareAnimeTile(row, col) {
   return tile;
 }
 function composedAnime(p) {
-  const row = p.level < 5 ? (p.sex === "M" ? 2 : 3) : p.sex === "M" ? 0 : 1,
-    tile =
-      p.level >= 5 && rankAtlas
-        ? prepareRankTile(p)
-        : prepareAnimeTile(row, p.hairstyle ?? p.genes.style);
+  const row = p.level < 5 ? (p.sex === "M" ? 2 : 3) : p.sex === "M" ? 0 : 1;
+  const race = p.race || "human";
+  const atlas = raceAtlases.get(race) || animeAtlas;
+  const tile =
+    p.level >= 5 && rankAtlas && race === "human"
+      ? prepareRankTile(p)
+      : prepareAnimeTile(row, p.hairstyle ?? p.genes.style, atlas, race);
   const c = document.createElement("canvas");
   c.width = tile.w;
   c.height = tile.h;
@@ -407,6 +410,8 @@ function artURL(p, portrait = false) {
     return "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
   const key = JSON.stringify([
     p.genes,
+    p.race,
+    p.caste,
     p.hairstyle,
     p.appearance,
     p.rank,
@@ -466,6 +471,7 @@ function loadAnimeArt() {
   const image = new Image();
   image.onload = () => {
     animeAtlas = image;
+    raceAtlases.set("human", image);
     animeLoadError = false;
     artCache.clear();
     render();
@@ -477,6 +483,19 @@ function loadAnimeArt() {
     refreshPersonModal();
   };
   image.src = "assets/anime-character-atlas.png";
+
+  for (const [race, source] of Object.entries(RACE_ATLAS_ASSETS)) {
+    if (race === "human") continue;
+    const raceImage = new Image();
+    raceImage.onload = () => {
+      raceAtlases.set(race, raceImage);
+      animeTiles.clear();
+      artCache.clear();
+      render();
+      refreshPersonModal();
+    };
+    raceImage.src = source;
+  }
 }
 function prepareRankTile(p) {
   const row = p.sex === "M" ? 0 : 1,
