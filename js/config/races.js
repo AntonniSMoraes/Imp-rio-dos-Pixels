@@ -178,3 +178,8 @@ function ensureRaceData(person) {
   person.racialTraits = Array.isArray(person.racialTraits) ? person.racialTraits : [];
   return person;
 }
+
+function raceLabel(person) {
+  const race = person?.race || "human";
+  return RACES[race]?.name || race;
+}

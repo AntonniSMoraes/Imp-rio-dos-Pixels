@@ -973,7 +973,7 @@ function peopleCard(p) {
     }
   }
 
-  return '<button class="citizen-card ' + (!p.alive ? 'memorial-card' : '') + '" data-person="' + p.id + '">' + portrait(p) + '<div class="citizen-info"><h2>' + esc(p.name) + ' ' + esc(p.family) + '</h2><p>' + sexLabel(p) + ' · ' + stage(p) + ' · ' + Math.floor(p.age) + ' anos</p><span class="rank rank-' + p.rank + '">' + (p.level < 5 ? 'Rank oculto' : RANKS[p.rank]) + '</span> ' + (p.debut ? '<span class="badge">DEBUT</span>' : '') + '<span class="citizen-class">' + title(p) + ' · ' + (p.vocation || 'Em formação') + '</span><small style="' + (!p.alive ? 'color:#e69b91;font-weight:600;' : '') + '">' + jobStatusDesc + '</small></div>' + spouseBadgeHtml + '</button>';
+  return '<button class="citizen-card ' + (!p.alive ? 'memorial-card' : '') + '" data-person="' + p.id + '">' + portrait(p) + '<div class="citizen-info"><h2>' + esc(p.name) + ' ' + esc(p.family) + '</h2><p>' + sexLabel(p) + ' · ' + stage(p) + ' · ' + Math.floor(p.age) + ' anos · ' + raceLabel(p) + '</p><span class="rank rank-' + p.rank + '">' + (p.level < 5 ? 'Rank oculto' : RANKS[p.rank]) + '</span> ' + (p.debut ? '<span class="badge">DEBUT</span>' : '') + '<span class="citizen-class">' + title(p) + ' · ' + (p.vocation || 'Em formação') + '</span><small style="' + (!p.alive ? 'color:#e69b91;font-weight:600;' : '') + '">' + jobStatusDesc + '</small></div>' + spouseBadgeHtml + '</button>';
 }
 
 peopleView = function() {
