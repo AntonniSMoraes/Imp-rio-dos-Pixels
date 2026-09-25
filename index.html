@@ -7,7 +7,9 @@
         <meta name="description" content="Construa uma vila, proteja sua linhagem e governe o Norte Gélido. Um jogo local de estratégia e dinastia.">
         <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='5' fill='%23131e22'/%3E%3Cpath d='M6 10l5 5 5-9 5 9 5-5-3 15H9z' fill='%23d3ac69'/%3E%3C/svg%3E">
         <link rel="stylesheet" href="style.css">
-        
+        <link rel="stylesheet" href="styles/campaign-map.css">
+        <script type="importmap">{"imports":{"three":"./vendor/three/three.module.js"}}</script>
+
         <!-- No <head> do index.html -->
         <link rel="manifest" href="manifest.json">
         <meta name="theme-color" content="#142a3d">
@@ -17,7 +19,7 @@
         <link rel="apple-touch-icon" href="assets/icon-192.png">
 
         <script>
-        if ('serviceWorker' in navigator) {
+        if ('serviceWorker' in navigator && location.protocol !== 'file:') {
             window.addEventListener('load', () => {
             navigator.serviceWorker.register('./sw.js')
                 .then(() => console.log('PWA: Service Worker ativo!'))
@@ -27,49 +29,49 @@
         </script>
     </head>
     <body>
+        <aside id="file-mode-notice" hidden style="padding:12px 20px;background:#332b19;color:#f3dfaa;border-bottom:1px solid #96783f">
+            Você abriu o arquivo diretamente. O navegador pode bloquear os retratos.
+            Para jogar com a arte completa, execute <b>node tools/serve.mjs</b> nesta pasta e
+            <a href="http://127.0.0.1:4173/" style="color:inherit">abra o jogo local</a>.
+            Para levar sua campanha: <button data-action="export">Exportar progresso</button> e depois Menu → Importar progresso no jogo local.
+        </aside>
+        <script>document.getElementById('file-mode-notice').hidden = location.protocol !== 'file:';</script>
         <div id="app"></div>
         <div id="toast" role="status"></div>
         <dialog id="modal"></dialog>
-        <script src="names.js"></script>
-        <script src="art.js"></script>
-        <script src="game.js"></script>
-        <script src="kingdom.js"></script>
-        <script>
-            (function() {
-                function c() {
-                    var b = a.contentDocument || (a.contentWindow && a.contentWindow.document);
-                    if (b) {
-                        var d = b.createElement('script');
-                        d.innerHTML = "window.__CF$cv$params={r:'a3e289e6cda98bbf',t:'MTc4OTkyNTIyMw=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";
-                        b.getElementsByTagName('head')[0].appendChild(d)
-                    }
-                }
-                if (document.body) {
-                    var a = document.createElement('iframe');
-                    a.height = 1;
-                    a.width = 1;
-                    a.style.position = 'absolute';
-                    a.style.top = 0;
-                    a.style.left = 0;
-                    a.style.border = 'none';
-                    a.style.visibility = 'hidden';
-                    document.body.appendChild(a);
-                    if ('loading' !== document.readyState)
-                        c();
-                    else if (window.addEventListener)
-                        document.addEventListener('DOMContentLoaded', c);
-                    else {
-                        var e = document.onreadystatechange || function() {}
-                        ;
-                        document.onreadystatechange = function(b) {
-                            e(b);
-                            'loading' !== document.readyState && (document.onreadystatechange = e,
-                            c())
-                        }
-                    }
-                }
-            }
-            )();
-        </script>
+        <script src="js/config/names.js"></script>
+        <script src="js/config/config.js"></script>
+        <script src="js/config/races.js"></script>
+        <script src="js/config/race-assets.js"></script>
+        <script src="js/core/utils.js"></script>
+        <script src="js/art/art-state.js"></script>
+        <script src="js/art/art-palette.js"></script>
+        <script src="js/art/atlas-preparation.js"></script>
+        <script src="js/art/legacy-composition.js"></script>
+        <script src="js/art/art.js"></script>
+        <script src="js/art/rank-atlas.js"></script>
+        <script src="js/engine/race-genetics.js"></script>
+        <script src="js/engine/calendar.js"></script>
+        <script src="js/engine/reproduction.js"></script>
+        <script src="js/model/people-model.js"></script>
+        <script src="js/model/people-relations.js"></script>
+        <script src="js/economy/state-economy.js"></script>
+        <script src="js/core/save-validation.js"></script>
+        <script src="js/recruitment/recruitment-system.js"></script>
+        <script src="js/combat/battle-system.js"></script>
+        <script src="js/village/village-views.js"></script>
+        <script src="js/village/village-render.js"></script>
+        <script src="js/village/game-state.js"></script>
+        <script src="js/village/game.js"></script>
+        <script src="js/map-3d/campaign-map.js"></script>
+        <script src="js/village/village-dialogs.js"></script>
+        <script src="js/village/village-events.js"></script>
+        <script src="js/village/village-loop.js"></script>
+        <script src="js/territory/provinces.js"></script>
+        <script src="js/territory/realm-territory.js"></script>
+        <script src="js/territory/territory-selection.js"></script>
+        <script src="js/kingdom/kingdom.js"></script>
+        <script src="js/engine/daily-cycle.js"></script>
+
     </body>
 </html>
