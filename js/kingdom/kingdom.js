@@ -1,6 +1,6 @@
 'use strict';
 // Government is a persisted tree of individual title holders, independent of genealogy.
-let peopleTab = 'all', mapMode = 'realm', pendingLand = null, realmZoom = 1, realmHits = [];
+let peopleTab = 'all', pendingLand = null;
 let collapsedLords = new Set();
 let collapsedFamilies = new Set();
 let collapsedHouseDetails = new Set();
@@ -10,7 +10,7 @@ let editBorderMode = false;
 let selectedBorderNoble = null;
 
 const byId = function(id) { return state ? state.people.find(function(p) { return p.id === id; }) : null; };
-const adult = function(p) { return p && p.alive && p.level >= 5 && p.age >= 18; };
+const adult = function(p) { return p && p.alive && p.level >= 5 && isAdultAge(p); };
 const headOf = function(p) { return byId(p.houseHead) || p; };
 const isHead = function(p) { return Boolean(p && !byId(p.unionHead)?.alive && (p.id === state?.king || p.houseHead === p.id)); };
 const partners = function(p) { return (p.partners || []).map(function(x) { return byId(x.id); }).filter(function(p) { return p?.alive; }); };
@@ -530,36 +530,6 @@ function effectiveLord(p) {
   return h.social >= 2 ? h : null;
 }
 
-function breedingStatus(p) {
-  if (!adult(p)) return 'Ainda não atingiu 18 anos';
-  if (p.sex !== 'F') return 'Nascimentos acompanhados na ficha da parceira';
-  if (p.age >= 55) return 'Fora da idade fértil';
-  if (!partners(p).some(function(x) { return adult(x) && x.sex === 'M' && x.age < 55; })) return 'Sem parceiro fértil';
-  if (!state) return '';
-  if (state.day - p.lastBirth < 32) return 'Recuperação: ' + Math.ceil(32 - state.day + p.lastBirth) + ' dias';
-  if (alive().length >= capacity()) return 'Aguardando moradia';
-  if (state.food < alive().length * 0.65 + 5) return 'Alimento insuficiente';
-  return 'Elegível no próximo ciclo de 4 dias';
-}
-
-function birthCycle() {
-  if (!state || state.day % 4) return;
-  const moms = adults().filter(function(p) {
-    return p.sex === 'F' && p.age >= 18 && p.age < 55 && state.day - p.lastBirth >= 32 && partners(p).some(function(x) { return adult(x) && x.sex === 'M' && x.age < 55; });
-  }).sort(function(a, b) { return (a.lastBirth - b.lastBirth) || a.id.localeCompare(b.id); });
-  if (!moms.length) return;
-  for (const mother of moms) {
-    if (alive().length >= capacity() || state.food < alive().length * 0.65 + 5) break;
-    const father = pick(partners(mother).filter(function(x) { return adult(x) && x.sex === 'M' && x.age < 55; }));
-    const child = childOf(father, mother);
-    mother.lastBirth = state.day;
-    state.people.push(child);
-    state.food -= 5;
-    state.births++;
-    log(child.name + ' nasceu na Casa ' + headOf(child).family + '. Pais: ' + father.name + ' e ' + mother.name + '.');
-  }
-}
-
 function acceptance(a, b) {
   let chance = 0.62 + (b.rank - a.rank) * 0.065;
   const low = headOf(b).social < headOf(a).social;
@@ -906,22 +876,10 @@ function governmentCycle() {
   }
 }
 
-const oldAdvance = advance;
-advance = function() {
-  upgradeKingdom();
-  oldAdvance();
-  birthCycle();
-  politicalCycle();
-  governmentCycle();
-  save();
-  render();
-  refreshPersonModal();
-};
-
 const oldReveal = reveal;
 reveal = function(p) {
+  if (!isAdultAge(p) || p.level >= 5) return;
   oldReveal(p);
-  p.age = Math.max(18, p.age);
   ensurePerson(p);
   p.hairstyle = rand(4);
   if (headOf(p).social >= 2 && !p.traits.includes('elitista') && Math.random() < 0.25) p.traits.push('elitista');
@@ -1189,7 +1147,7 @@ dynastyView = function() {
   } else {
     body += '<p class="hint">Ainda não há mulheres na vila.</p>';
   }
-  body += '<p class="hint">Todas as mães elegíveis são avaliadas a cada 4 dias. Quando há poucas vagas, quem espera há mais tempo tem prioridade.</p></div></section>';
+  body += '<p class="hint">Concepção não é garantida: tentativas a cada 4 dias, seguidas por gestação e recuperação racial. Gestações iniciadas chegam ao parto mesmo se faltar espaço ou alimento. Consulte os prazos na ficha de cada mulher.</p></div></section>';
   return body;
 };
 
@@ -1219,7 +1177,7 @@ familyControls = function(p) {
   }
 
   html += '<h4>Traços</h4><p>' + (p.traits.filter(function(t) { return t !== 'sexy' || adult(p); }).map(function(t) { return '<span class="tag">' + esc(t) + '</span>'; }).join(' ') || 'Nenhum traço especial') + '</p>';
-  if (p.sex === 'F') html += '<p class="hint">' + breedingStatus(p) + '</p>';
+  if (p.sex === 'F') html += '<p class="hint">' + breedingStatus(p) + '</p><p class="hint">' + reproductionRules(p) + '</p>';
   if (children.length) html += '<h4>Descendentes</h4>' + children.map(personLink).join('');
   if (p.social >= 2 && !isRoyalFamilyMember(p)) {
     html += '<h4>Comando</h4>' + commandControl(p);
@@ -1250,34 +1208,26 @@ function morton(n) {
   return { x: x, y: y };
 }
 
-const oldDrawMap = drawMap;
-const oldMapClick = mapClick;
-const oldMapView = mapView;
-
-mapView = function() {
-  if (!state) return '';
-  if (mapMode === 'village') return '<div class="realm-switch"><button data-map-mode="realm">← Atlas do reino</button></div>' + oldMapView();
-  let panelHtml = selected.kind === 'person' ? personPanel(byId(selected.id)) : (selected.kind === 'region' ? regionPanel(selected.index) : locationPanel());
-  return '<section class="realm-surface"><div class="realm-toolbar"><span>' + (pendingLand ? 'SELECIONE O TERRITÓRIO PARA A PROMOÇÃO' : 'CARTA DE PANGEIA · ' + (state.royalLands || []).length + ' vilas reais (' + getRoyalDomainName() + ')') + '</span><button data-toggle-border-edit="true" class="' + (editBorderMode ? 'primary' : '') + '">' + (editBorderMode ? 'Sair da Edição' : 'Edição de Fronteiras') + '</button><button data-map-mode="village">Inspecionar vila pioneira</button><button data-realm-zoom="1">+</button><button data-realm-zoom="-1">−</button></div><div class="realm-scroll"><canvas id="realm-map" width="1312" height="672" aria-label="Mapa orgânico de Pangeia"></canvas></div><div class="map-biome-legend" style="background:#142332;padding:6px 14px;border-top:1px solid #4b667a;display:flex;gap:18px;font-size:11px;color:#d5ded7;align-items:center;"><span><b>Legenda dos Biomas:</b></span><span>🌲 Floresta (+35% Lenha)</span><span>🌊 Oceano Costeiro (+35% Alimento)</span><span>⛰️ Serra/Montanha (+40% Ferro)</span><span>🌾 Planície Fértil (Padrão)</span></div></section><aside class="inspector">' + panelHtml + '</aside>';
-};
-
 function regionPanel(index) {
   if (!state) return '';
   const isRoyal = (state.royalLands || []).includes(index);
   const owner = alive().find(function(p) {
     return p.social >= 2 && p.id !== state.king && (p.tiles || [p.territory]).includes(index);
   });
+  const province = TerritoryGeometry.get(index);
+  const price = province.price;
   const biome = getTileBiome(index);
   const biomeLabels = { floresta: '🌲 Bosques Densos', lago: '🌊 Oceano Costeiro', mina: '⛰️ Cordilheira Mineral', planicie: '🌾 Planície Fértil' };
   
   let html = '<div class="inspector-head"><span class="eyebrow">TERRITÓRIO</span><h2>Vila ' + (index + 1) + '</h2></div><div class="inspector-scroll">';
   html += '<div class="kv"><span>Relevo / Bioma</span><b>' + (biomeLabels[biome] || 'Planície') + '</b></div>';
 
-  if (isRoyal) {
+  html += '<div class="kv"><span>Área terrestre</span><b>' + province.landArea.toFixed(1) + ' km²</b></div>';
+  if (isRoyal || owner) {
     html += '<p class="description" style="color:var(--gold);margin-top:10px;"><b>Território Integrado ao Domínio Real.</b></p>';
   } else {
     html += '<p class="description" style="margin-top:10px;">Terra livre fora da posse da Coroa.</p>';
-    html += '<button class="primary full" data-buy-land="' + index + '" ' + (state.gold < 45 ? 'disabled' : '') + '>Anexar ao Reino · 45 ouro</button>';
+    html += '<button class="primary full" data-buy-land="' + index + '" ' + (price === null || state.gold < price ? 'disabled' : '') + '>' + (price === null ? 'Sem terras anexáveis' : 'Anexar ao Reino · ' + price + ' ouro') + '</button>';
   }
 
   if (owner) {
@@ -1290,216 +1240,8 @@ function regionPanel(index) {
   return html;
 }
 
-function computeBiomeClusters() {
-  const visited = new Set();
-  const clusters = [];
-
-  for (let y = 0; y < 16; y++) {
-    for (let x = 0; x < 32; x++) {
-      const idx = mortonFromCoord(x, y);
-      if (idx < 0 || visited.has(idx)) continue;
-      const biome = getTileBiome(idx);
-      const cluster = [];
-      const queue = [idx];
-      visited.add(idx);
-
-      while (queue.length > 0) {
-        const cur = queue.shift();
-        cluster.push(cur);
-        const c = getTileCoords(cur);
-        const nbs = [
-          mortonFromCoord(c.x + 1, c.y),
-          mortonFromCoord(c.x - 1, c.y),
-          mortonFromCoord(c.x, c.y + 1),
-          mortonFromCoord(c.x, c.y - 1)
-        ];
-        for (const nb of nbs) {
-          if (nb >= 0 && !visited.has(nb) && getTileBiome(nb) === biome) {
-            visited.add(nb);
-            queue.push(nb);
-          }
-        }
-      }
-      clusters.push({ biome: biome, tiles: cluster });
-    }
-  }
-  return clusters;
-}
-
-drawMap = function() {
-  if (!state) return;
-  if (mapMode === 'village') return oldDrawMap();
-  const c = $('#realm-map');
-  if (!c) return;
-  const g = c.getContext('2d');
-  
-  g.fillStyle = '#6b8e9b';
-  g.fillRect(0, 0, 1312, 672);
-
-  const biomeColors = {
-    lago: '#7ca2b0',
-    floresta: '#c5cb9b',
-    mina: '#beaf94',
-    planicie: '#dfd2ad'
-  };
-
-  for (let y = 0; y < 16; y++) {
-    for (let x = 0; x < 32; x++) {
-      const idx = mortonFromCoord(x, y);
-      const rx = x * 40 + 16;
-      const ry = y * 40 + 16;
-      const biome = getTileBiome(idx);
-      g.fillStyle = biomeColors[biome] || '#dfd2ad';
-      g.fillRect(rx, ry, 40, 40);
-
-      g.strokeStyle = 'rgba(74, 58, 38, 0.18)';
-      g.lineWidth = 0.5;
-      g.strokeRect(rx, ry, 40, 40);
-    }
-  }
-
-  g.strokeStyle = '#4a3a26';
-  g.lineWidth = 1.5;
-  for (let y = 0; y < 16; y++) {
-    for (let x = 0; x < 32; x++) {
-      const idx = mortonFromCoord(x, y);
-      const isLand = getTileBiome(idx) !== 'lago';
-      if (!isLand) continue;
-      const rx = x * 40 + 16;
-      const ry = y * 40 + 16;
-
-      const neighbors = [
-        { nx: x + 1, ny: y, side: 'R' },
-        { nx: x - 1, ny: y, side: 'L' },
-        { nx: x, ny: y + 1, side: 'B' },
-        { nx: x, ny: y - 1, side: 'T' }
-      ];
-      for (const n of neighbors) {
-        const nIdx = mortonFromCoord(n.nx, n.ny);
-        if (nIdx < 0 || getTileBiome(nIdx) === 'lago') {
-          g.beginPath();
-          if (n.side === 'R') { g.moveTo(rx + 40, ry); g.lineTo(rx + 40, ry + 40); }
-          if (n.side === 'L') { g.moveTo(rx, ry); g.lineTo(rx, ry + 40); }
-          if (n.side === 'B') { g.moveTo(rx, ry + 40); g.lineTo(rx + 40, ry + 40); }
-          if (n.side === 'T') { g.moveTo(rx, ry); g.lineTo(rx + 40, ry); }
-          g.stroke();
-        }
-      }
-    }
-  }
-
-  const clusters = computeBiomeClusters();
-  const biomeIcons = { floresta: '🌲', mina: '⛰️', lago: '≈', planicie: '' };
-
-  for (const cl of clusters) {
-    if (cl.tiles.length < 2 && cl.biome !== 'mina') continue;
-    let sumX = 0, sumY = 0;
-    for (const t of cl.tiles) {
-      const cd = getTileCoords(t);
-      sumX += cd.x;
-      sumY += cd.y;
-    }
-    const avgX = Math.round(sumX / cl.tiles.length);
-    const avgY = Math.round(sumY / cl.tiles.length);
-    const rx = avgX * 40 + 16;
-    const ry = avgY * 40 + 16;
-
-    if (biomeIcons[cl.biome]) {
-      g.fillStyle = '#3a2d1d';
-      g.font = cl.tiles.length > 5 ? '19px Georgia' : '14px Georgia';
-      g.textAlign = 'center';
-      g.textBaseline = 'middle';
-      g.fillText(biomeIcons[cl.biome], rx + 20, ry + 20);
-    }
-  }
-  g.textAlign = 'left';
-  g.textBaseline = 'alphabetic';
-
-  const royal = state.royalLands || [];
-  g.fillStyle = 'rgba(212, 175, 55, 0.28)';
-  g.strokeStyle = '#996515';
-  g.lineWidth = 2.2;
-  for (const t of royal) {
-    const coord = getTileCoords(t);
-    const rx = coord.x * 40 + 16;
-    const ry = coord.y * 40 + 16;
-    g.fillRect(rx, ry, 40, 40);
-    g.strokeRect(rx + 1, ry + 1, 38, 38);
-  }
-
-  const nobles = alive().filter(function(p) { return p.id !== state.king && p.social >= 2 && ((p.tiles && p.tiles.length) || p.territory !== null); });
-  for (const p of nobles) {
-    const tiles = p.tiles || [p.territory];
-    const h = (p.promotedAt * 67) % 360;
-    g.fillStyle = 'hsla(' + h + ', 65%, 45%, 0.38)';
-    g.strokeStyle = 'hsl(' + h + ', 70%, 30%)';
-    g.lineWidth = Math.max(1, p.social - 1);
-
-    for (const t of tiles) {
-      if (t === null || t === undefined) continue;
-      const coord = getTileCoords(t);
-      const bx = coord.x * 40 + 16;
-      const by = coord.y * 40 + 16;
-      g.fillRect(bx, by, 40, 40);
-      g.strokeRect(bx + 1, by + 1, 38, 38);
-    }
-
-    if (tiles.length > 0 && tiles[0] !== null) {
-      const coord = getTileCoords(tiles[0]);
-      g.fillStyle = 'rgba(245, 237, 215, 0.95)';
-      g.fillRect(coord.x * 40 + 17, coord.y * 40 + 17, 38, 14);
-      g.fillStyle = '#2b2115';
-      g.font = 'bold 10px Georgia';
-      g.fillText(p.family.slice(0, 5), coord.x * 40 + 19, coord.y * 40 + 28);
-    }
-  }
-
-  const previewCluster = $('#promotion-land-cluster')?.value;
-  if (previewCluster) {
-    const tList = previewCluster.split(',').map(Number);
-    g.fillStyle = 'rgba(46, 139, 87, 0.55)';
-    g.strokeStyle = '#2e8b57';
-    g.lineWidth = 2.5;
-    for (const t of tList) {
-      const coord = getTileCoords(t);
-      g.fillRect(coord.x * 40 + 16, coord.y * 40 + 16, 40, 40);
-      g.strokeRect(coord.x * 40 + 17, coord.y * 40 + 17, 38, 38);
-    }
-  }
-
-  realmHits = [];
-  const regSeat = (REGIONS[state.region]?.seat !== undefined) ? REGIONS[state.region].seat : 240;
-  for (let i = 0; i < alive().length; i++) {
-    const p = alive()[i];
-    const lord = effectiveLord(p) || headOf(p);
-    const seat = (lord.tiles && lord.tiles.length) ? lord.tiles[0] : ((lord.territory !== null && lord.territory !== undefined) ? lord.territory : regSeat);
-    const coord = getTileCoords(seat);
-    const bx = coord.x * 40 + 16;
-    const by = coord.y * 40 + 16;
-    const phase = anim * 0.0002 + i;
-    const progress = speed ? (Math.sin(phase) + 1) / 2 : 0.5;
-    const offsetMap = { wood: [18, 10], iron: [-8, -8], food: [22, -6], idle: [0, 0], train: [4, 0] };
-    const offset = offsetMap[p.job] || [0, 0];
-    const ox = 10 + (i % 5) * 3 + offset[0] * progress;
-    const oy = 19 + (Math.floor(i / 5) % 3) * 3 + offset[1] * progress;
-    const px = onMission(p) ? bx + ox + (1160 - bx) * progress : bx + ox;
-    const py = onMission(p) ? by + oy + (260 - by) * progress : by + oy;
-    g.fillStyle = '#f9e8ba';
-    g.fillRect(px - 1, py - 1, 6, 6);
-    g.fillStyle = p.id === state.king ? '#8b0000' : (p.social >= 2 ? '#4b0082' : '#2e8b57');
-    g.fillRect(px, py, 4, 4);
-    realmHits.push({ id: p.id, x: px + 1, y: py + 1 });
-  }
-
-  g.fillStyle = '#4a3a26';
-  g.font = 'bold 12px Georgia';
-  g.fillText('♜ ' + getRoyalDomainName().toUpperCase(), 22, 29);
-  c.style.width = (1312 * realmZoom) + 'px';
-  c.style.height = (672 * realmZoom) + 'px';
-};
-
 function kingdomRules() {
-  modal('Regras do conselho', '<p>Soldado 20 · Cavaleiro 80 · Barão 180 · Visconde 360 · Conde 720 · Marquês 1.400 · Duque 2.800 ouros. A patente de soldado não concede bônus de combate.</p><p>As vilas de novos feudos devem obrigatoriamente fazer parte das terras da Coroa.</p><p>A Coroa compra qualquer bloco livre por 45 ouro. As terras dos feudos podem ter formatos conectados livres (I, L, quadrado), aproveitando as terras que o nobre já possuía.</p><p>O sistema tributário cobra taxas feudais em cascata que sobem pelos suseranos até o cofre da Capital.</p>');
+  modal('Regras do conselho', '<p>Soldado 20 · Cavaleiro 80 · Barão 180 · Visconde 360 · Conde 720 · Marquês 1.400 · Duque 2.800 ouros. A patente de soldado não concede bônus de combate.</p><p>As vilas de novos feudos devem obrigatoriamente fazer parte das terras da Coroa.</p><p>A Coroa compra províncias livres por preços proporcionais à área terrestre e ajustados pelo relevo. Feudos usam províncias vizinhas pelos contornos do atlas.</p><p>O sistema tributário cobra taxas feudais em cascata que sobem pelos suseranos até o cofre da Capital.</p>');
 }
 
 document.addEventListener('click', function(e) {
@@ -1534,90 +1276,17 @@ document.addEventListener('click', function(e) {
     buyLand(Number(b.dataset.buyLand));
     return;
   }
-  if (e.target.id === 'realm-map') {
-    const r = e.target.getBoundingClientRect();
-    const x = (e.clientX - r.left) / r.width * 1312;
-    const y = (e.clientY - r.top) / r.height * 672;
-    const col = Math.floor((x - 16) / 40);
-    const row = Math.floor((y - 16) / 40);
-    const mob = realmHits.filter(function(p) { return Math.hypot(p.x - x, p.y - y) < 6; }).sort(function(a, b) { return Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y); })[0];
-    if (mob && !pendingLand && !editBorderMode) {
-      openPerson(mob.id, true);
-      return;
-    }
-    if (col < 0 || col > 31 || row < 0 || row > 15) return;
-    const index = mortonFromCoord(col, row);
-    if (index < 0) return;
-
-    if (pendingLand) {
-      const p = byId(pendingLand);
-      const nextRank = p.social + 1;
-      const targetSize = LAND_SIZE[nextRank] || 1;
-      const currentPersonTiles = (p.tiles || [p.territory]).filter(t => t !== null && t !== undefined);
-      const cluster = getClusterFromTile(index, targetSize, currentPersonTiles);
-      if (!cluster) {
-        return toast('O território precisa ter ' + targetSize + ' vilas conectadas livres pertencentes à Coroa (a Capital Real está protegida).');
-      }
-      const chosenPersonId = pendingLand;
-      pendingLand = null;
-      promotionDialog(chosenPersonId, cluster);
-      return;
-    }
-
-    if (editBorderMode) {
-      const clickedNoble = alive().find(function(p) {
-        return p.social >= 2 && p.id !== state.king && (p.tiles || []).includes(index);
-      });
-      if (clickedNoble) {
-        selectedBorderNoble = clickedNoble.id;
-        toast('Casa ' + clickedNoble.family + ' selecionada. Clique em um bloco real livre vizinho para transferir.');
-      } else if (selectedBorderNoble) {
-        const noble = byId(selectedBorderNoble);
-        if (noble && (state.royalLands || []).includes(index)) {
-          if (state.gold < 15) return toast('Ouro insuficiente para alterar fronteiras (Custo: 15 ouro).');
-          const oldTiles = [...(noble.tiles || [])];
-          const removeIdx = oldTiles[oldTiles.length - 1];
-          const newTiles = oldTiles.filter(function(t) { return t !== removeIdx; });
-          newTiles.push(index);
-          if (!areTilesConnected(newTiles)) {
-            return toast('A nova fronteira deve manter todos os blocos do feudo conectados!');
-          }
-          state.gold -= 15;
-          noble.tiles = newTiles;
-          noble.territory = newTiles[0];
-          log('Fronteira ajustada: A Casa ' + noble.family + ' remanejou suas terras.');
-          save();
-          render();
-          toast('Fronteira alterada com sucesso.');
-        }
-      }
-      return;
-    }
-
-    selected = { kind: 'region', index: index };
-    render();
-    return;
-  }
   if (!b) return;
   if (b.dataset.landPick) {
     pendingLand = b.dataset.landPick;
     $('#modal').close();
     view = 'map';
-    mapMode = 'realm';
     render();
     toast('Clique no mapa para posicionar ou expandir o feudo.');
   }
   if (b.dataset.peopleTab) {
     peopleTab = b.dataset.peopleTab;
     render();
-  }
-  if (b.dataset.mapMode) {
-    mapMode = b.dataset.mapMode;
-    render();
-  }
-  if (b.dataset.realmZoom) {
-    realmZoom = clamp(realmZoom + Number(b.dataset.realmZoom) * 0.2, 0.4, 2);
-    drawMap();
   }
   if (b.dataset.grant) {
     const p = byId(b.dataset.grant);

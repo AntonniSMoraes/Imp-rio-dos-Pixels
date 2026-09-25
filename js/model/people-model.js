@@ -69,15 +69,17 @@ function makePerson({
     family: identity.family,
     sex,
     race: "human",
+    ancestry: { human: 1 },
+    ancestryVersion: 1,
     caste: null,
     racialTraits: [],
     age,
     rank: resolvedRank,
     attrs,
     high,
-    level: age < 16 ? 1 : 5,
+    level: age < CALENDAR.adultAge ? 1 : 5,
     xp: 0,
-    vocation: age < 16 ? null : pick(CLASSES),
+    vocation: age < CALENDAR.adultAge ? null : pick(CLASSES),
     social: 0,
     job: "idle",
     hp: 100,
@@ -95,30 +97,18 @@ function makePerson({
 }
 
 function childOf(firstParent, secondParent) {
+  const heritage = inheritRaceData(firstParent, secondParent);
   const child = makePerson({
     age: 0,
+    sex: heritage.race === 'harpy' ? 'F' : pick(['M', 'F']),
     family: firstParent.family,
     parents: [firstParent.id, secondParent.id],
   });
   Object.assign(child, inheritGenes(firstParent, secondParent));
-  Object.assign(child, inheritRaceData(firstParent, secondParent));
+  Object.assign(child, heritage);
 
-  if (Math.random() < 0.5) {
-    const bestAttributes = Object.keys(child.attrs)
-      .sort(
-        (firstKey, secondKey) =>
-          Math.max(firstParent.attrs[secondKey], secondParent.attrs[secondKey]) -
-          Math.max(firstParent.attrs[firstKey], secondParent.attrs[firstKey]),
-      )
-      .slice(0, 2);
-    for (const key of bestAttributes) {
-      const value = Math.max(firstParent.attrs[key], secondParent.attrs[key]);
-      if (value > child.attrs[key]) {
-        child.attrs[key] = value;
-        child.high.push(key);
-      }
-    }
-  }
+  child.attrs = inheritAttributes(firstParent, secondParent);
+  child.high = [];
   return child;
 }
 

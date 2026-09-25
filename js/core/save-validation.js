@@ -67,6 +67,9 @@ function validateSave(save) {
       !(person.job in JOBS) ||
       (person.vocation && !CLASSES.includes(person.vocation))
     ) throw Error("stats");
+    normalizeLifeStage(person);
+    ensureRaceData(person);
+    validateReproduction(person, save);
   }
 
   for (const entry of save.logs)

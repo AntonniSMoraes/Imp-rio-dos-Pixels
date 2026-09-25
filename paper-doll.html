@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Ateliê de personagens · Império dos Pixels</title>
+  <link rel="stylesheet" href="styles/paper-doll.css">
+  <script type="module" src="js/paper-doll/studio.mjs"></script>
+</head>
+<body>
+  <header class="masthead">
+    <a class="wordmark" href="index.html">♜ <span>IMPÉRIO DOS PIXELS</span></a>
+    <span class="edition">ESTUDOS DE PERSONAGEM / 01</span>
+  </header>
+  <main>
+    <section class="intro">
+      <p class="eyebrow">O ROSTO DE UMA NOVA DINASTIA</p>
+      <h1>Ateliê de personagens</h1>
+      <p>Uma identidade, muitas possibilidades. Combine as primeiras peças humanas e encontre o rosto da sua próxima história.</p>
+    </section>
+    <div class="studio">
+      <section class="panel choices" aria-labelledby="choices-title">
+        <p class="eyebrow">01 / COMPOSIÇÃO</p>
+        <h2 id="choices-title">Escolha os traços</h2>
+        <div id="controls"></div>
+        <button id="randomize" class="primary" type="button">Criar outra combinação ↗</button>
+        <div class="seed-control">
+          <label for="seed">Semente do personagem</label>
+          <div class="inline"><input id="seed" maxlength="120" value="primeiro-humano"><button id="generate" type="button">Gerar</button></div>
+        </div>
+        <p class="hint">A mesma semente recria as mesmas escolhas iniciais. Salvar preserva também seus ajustes.</p>
+      </section>
+      <section class="stage-panel" aria-label="Prévia do personagem">
+        <div class="stage-caption"><span>HUMANO · ADULTO</span><span>PILOTO ARTÍSTICO</span></div>
+        <div class="stage"><canvas id="character" width="384" height="640" role="img" aria-label="Personagem composto em camadas"></canvas></div>
+        <div class="stage-bottom"><span class="ornament">✦</span><span>Peças originais · cores preservadas</span><span class="ornament">✦</span></div>
+      </section>
+      <aside class="panel identity" aria-labelledby="identity-title">
+        <p class="eyebrow">02 / IDENTIDADE</p>
+        <h2 id="identity-title">Uma mesma pessoa</h2>
+        <canvas id="portrait" width="160" height="160" role="img" aria-label="Retrato recortado do personagem"></canvas>
+        <p class="hint">O retrato vem da mesma composição do corpo inteiro.</p>
+        <div class="actions"><button id="save" class="primary" type="button">Salvar aparência</button><button id="restore" type="button">Restaurar aparência</button><button id="export" type="button" disabled>Baixar imagem PNG</button></div>
+        <p id="status" role="status" aria-live="polite">Carregando as peças do ateliê…</p>
+        <details><summary>Inspecionar montagem</summary>
+          <div class="layer-toggles">
+            <label><input type="checkbox" data-layer="body" checked> Corpo vestido</label>
+            <label><input type="checkbox" data-layer="head" checked> Cabeça e pescoço</label>
+            <label><input type="checkbox" data-layer="hair" checked> Cabelo</label>
+          </div>
+          <pre id="recipe"></pre>
+        </details>
+      </aside>
+    </div>
+    <section class="gallery-section" aria-labelledby="gallery-title">
+      <div class="section-heading"><div><p class="eyebrow">UM PEQUENO ELENCO</p><h2 id="gallery-title">Estudos de combinação</h2></div><p>32 combinações. Escolha um rosto para continuar explorando.</p></div>
+      <div id="gallery" class="gallery"></div>
+    </section>
+    <footer>Piloto independente da campanha. Primeira biblioteca: corpos vestidos, cabeças e cabelos. Olhos e membros separados virão nas próximas etapas.</footer>
+  </main>
+</body>
+</html>

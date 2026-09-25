@@ -1,6 +1,7 @@
 "use strict";
 
 function render() {
+  detachCampaignMap();
   if (!state) {
     $("#app").innerHTML = '<div style="display:flex;height:100vh;align-items:center;justify-content:center;color:#aec4d1;background:#0d1821;"><h1>Aguardando Criação da Dinastia...</h1></div>';
     return;
@@ -14,7 +15,7 @@ function render() {
     ["food", "Alimento Real", "♨"],
     ["gold", "Tesouro Real", "◉"],
   ].map(([key, name, icon]) =>
-    '<div class="resource" title="' + name + ': cofre real da Coroa"><span class="res-icon">' + icon + '</span><div><small>' + name + '</small><b>' + Math.floor(state[key] || 0) + '</b><em class="' + (resourceRates[key] < 0 ? "bad" : "good") + '">' + (resourceRates[key] >= 0 ? "+" : "") + resourceRates[key].toFixed(1) + '</em></div></div>',
+    '<div class="resource" title="' + name + ': cofre real da Coroa"><span class="res-icon">' + icon + '</span><div><small>' + name + '</small><b>' + Math.floor(state[key] || 0) + '</b><em title="Saldo econômico do último dia: produção e tributos menos consumo. Construções e recrutamento não entram neste saldo." class="' + (resourceRates[key] < 0 ? "bad" : "good") + '">' + (resourceRates[key] >= 0 ? "+" : "") + resourceRates[key].toFixed(1) + '</em></div></div>',
   ).join("");
   const tabs = NAV.map(([key, icon, name]) =>
     '<button data-view="' + key + '" class="' + (view === key ? "active" : "") + '"><span>' + icon + '</span>' + name + (key === "people" && debuts ? '<em class="badge">' + debuts + '</em>' : "") + '</button>',

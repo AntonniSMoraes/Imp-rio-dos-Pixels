@@ -41,13 +41,7 @@ function areTilesConnected(tiles) {
   const queue = [tiles[0]];
   while (queue.length) {
     const current = queue.shift();
-    const coordinates = getTileCoords(current);
-    const neighbors = [
-      mortonFromCoord(coordinates.x + 1, coordinates.y),
-      mortonFromCoord(coordinates.x - 1, coordinates.y),
-      mortonFromCoord(coordinates.x, coordinates.y + 1),
-      mortonFromCoord(coordinates.x, coordinates.y - 1),
-    ];
+    const neighbors = TerritoryGeometry.get(current)?.neighbors || [];
     for (const neighbor of neighbors) {
       if (tileSet.has(neighbor) && !visited.has(neighbor)) {
         visited.add(neighbor);
@@ -79,13 +73,7 @@ function getClusterFromTile(startTile, size, currentPersonTiles = []) {
   const visited = new Set(cluster);
   while (queue.length && cluster.length < size) {
     const current = queue.shift();
-    const coordinates = getTileCoords(current);
-    const neighbors = [
-      mortonFromCoord(coordinates.x + 1, coordinates.y),
-      mortonFromCoord(coordinates.x - 1, coordinates.y),
-      mortonFromCoord(coordinates.x, coordinates.y + 1),
-      mortonFromCoord(coordinates.x, coordinates.y - 1),
-    ];
+    const neighbors = TerritoryGeometry.get(current)?.neighbors || [];
     for (const neighbor of neighbors) {
       if (neighbor >= 0 && neighbor !== seat && (royalLands.has(neighbor) || currentLands.has(neighbor)) && !occupied.has(neighbor) && !visited.has(neighbor)) {
         visited.add(neighbor);
@@ -131,12 +119,16 @@ function getAvailableConnectedClusters(size, targetPerson = null) {
 
 function buyLand(index) {
   if (!state) return;
-  if (state.gold < 45) return toast('Ouro insuficiente para comprar este território (Custo: 45 ouro).');
+  const province = TerritoryGeometry.get(index);
+  if (!province || province.price === null) return toast('Este território não possui área terrestre suficiente para anexação.');
   state.royalLands = state.royalLands || [];
   if (state.royalLands.includes(index)) return toast('Este território já faz parte do seu domínio.');
-  state.gold -= 45;
+  if (alive().some(person => person.id !== state.king && person.social >= 2 && (person.tiles || [person.territory]).includes(index))) return toast('Este território já pertence a um feudo.');
+  const price = province.price;
+  if (state.gold < price) return toast('Ouro insuficiente. Custo: ' + price + ' ouro.');
+  state.gold -= price;
   state.royalLands.push(index);
-  log('Expansão territorial: A Coroa anexou a Vila ' + (index + 1) + ' por 45 ouro.');
+  log('Expansão territorial: A Coroa anexou a Vila ' + (index + 1) + ' por ' + price + ' ouro.');
   save();
   render();
   toast('Território adquirido! Domínio expandido.');

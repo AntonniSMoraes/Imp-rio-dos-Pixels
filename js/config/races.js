@@ -2,6 +2,10 @@
 
 // GDD race data. This catalog is intentionally passive until the simulation consumes it.
 const RACES = {
+  darkElf: {
+    name: "Elfo Negro", type: "civilized", agingRate: 0.2,
+    fertilityRate: 0.4, traits: [], canInterbreed: true,
+  },
   human: {
     name: "Humano",
     type: "civilized",
@@ -173,7 +177,10 @@ const RACIAL_TRAITS = [
 ];
 
 function ensureRaceData(person) {
-  person.race = person.race || "human";
+  if (person.race && !RACES[person.race]) person.legacyRace = person.legacyRace || person.race;
+  person.ancestry = normalizedAncestry(person);
+  person.ancestryVersion = 1;
+  person.race = expressedRace(person.ancestry);
   person.caste = person.caste || null;
   person.racialTraits = Array.isArray(person.racialTraits) ? person.racialTraits : [];
   return person;
@@ -181,5 +188,6 @@ function ensureRaceData(person) {
 
 function raceLabel(person) {
   const race = person?.race || "human";
-  return RACES[race]?.name || race;
+  const mixed = person && Object.keys(normalizedAncestry(person)).length > 1;
+  return (mixed && !race.startsWith('half-') ? "Mestiço · " : "") + (RACES[race]?.name || race);
 }

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Atlas 3D · Império dos Pixels</title>
+  <link rel="stylesheet" href="styles/map-3d.css">
+  <script type="importmap">{"imports":{"three":"./vendor/three/three.module.js"}}</script>
+  <script type="module" src="js/map-3d/studio.mjs"></script>
+</head>
+<body>
+  <header><a href="index.html">♜ IMPÉRIO DOS PIXELS</a><span>ATLAS TERRITORIAL / 3D</span><a href="index.html">Voltar à campanha ↗</a></header>
+  <main>
+    <section class="map-shell" aria-label="Exploração do mapa">
+      <div class="map-title"><span class="eyebrow">CARTA DE PANGEIA</span><h1>Terras da Coroa</h1><p id="campaign-status">Carregando a carta…</p></div>
+      <div id="viewport"><p class="loading" id="loading">Preparando relevo e territórios…</p></div>
+      <div id="labels" aria-label="Sedes no mapa"></div>
+      <div class="map-tools" aria-label="Câmera e camadas">
+        <button id="home">Visão geral</button><button id="capital">Ir à capital</button>
+        <button id="zoom-in" aria-label="Aproximar">＋</button><button id="zoom-out" aria-label="Afastar">−</button>
+        <label><input id="borders" type="checkbox" checked> Fronteiras</label>
+        <label><input id="forests" type="checkbox" checked> Florestas</label>
+      </div>
+      <p class="map-help">Arraste para girar · botão direito para deslocar · roda para aproximar · clique para inspecionar</p>
+      <span class="compass" aria-label="Norte do mapa">N<br>↑</span>
+    </section>
+    <aside>
+      <span class="eyebrow">TERRITÓRIO SELECIONADO</span><h2 id="territory-name">Selecione uma região</h2>
+      <p id="territory-description">Explore o relevo e as terras da campanha.</p>
+      <dl><dt>Bioma</dt><dd id="biome">—</dd><dt>Domínio</dt><dd id="owner">—</dd><dt>Área total</dt><dd id="area">—</dd><dt>Área terrestre</dt><dd id="land-area">—</dd><dt>Valor de anexação</dt><dd id="price">—</dd><dt>Condição</dt><dd id="condition">—</dd></dl>
+      <button id="focus">Centralizar seleção</button>
+      <hr><h3>Ir a um território</h3>
+      <form id="find"><label for="tile-number">Número da vila (1–512)</label><div class="inline"><input id="tile-number" type="number" min="1" max="512" value="1" required><button>Localizar</button></div></form>
+      <h3>Sedes da campanha</h3><div id="settlements"></div>
+      <hr><p class="note">Províncias com contornos e tamanhos próprios. Valores consideram terra firme e relevo; km² representam a escala fictícia do mundo. Este é o mesmo mapa 3D usado na campanha.</p>
+      <p class="note">Esta tela consulta o save. O tempo e as ordens continuam sendo controlados na campanha.</p>
+      <button id="refresh">Atualizar dados da campanha</button>
+      <p id="status" role="status" aria-live="polite"></p>
+    </aside>
+  </main>
+  <noscript>Ative JavaScript e abra pelo servidor local para explorar o mapa.</noscript>
+</body>
+</html>

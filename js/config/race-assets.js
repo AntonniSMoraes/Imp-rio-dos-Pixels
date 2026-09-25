@@ -6,6 +6,7 @@ const RACE_ATLAS_ASSETS = {
   dwarf: "assets/anime-character-atlas-dwarf.png",
   darkElf: "assets/anime-character-atlas-dark-elf.png",
   beastfolk: "assets/anime-character-atlas-wolf.png",
+  wolf: "assets/anime-character-atlas-wolf.png",
   bunny: "assets/anime-character-atlas-bunny.png",
   cat: "assets/anime-character-atlas-cat.png",
   kobold: "assets/anime-character-atlas-kobold.png",

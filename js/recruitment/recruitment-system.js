@@ -7,8 +7,10 @@ function rollRecruitCount() {
 
 function recruitRacialTraveler(person) {
   if (!person || Math.random() >= 0.08) return person;
-  const race = pick(["elf", "dwarf"]);
+  const race = pick(ACTIVE_RACES.filter(race => race !== 'human'));
+  if (race === 'harpy' && person.sex !== 'F') person = makePerson({ age: person.age, sex: 'F' });
   person.race = race;
+  person.ancestry = ancestryFromRace(race);
   person.racialTraits = [...(RACES[race]?.traits || [])];
   return person;
 }
@@ -57,8 +59,13 @@ function callRecruitment() {
   if (state.day < state.nextRecruitDay) return toast("Um novo chamado ficará disponível no dia " + state.nextRecruitDay + ".");
   if (!alive().length) return;
   state.nextRecruitDay = state.day + 1;
-  const count = rollRecruitCount();
-  state.guests = recruitmentGroup(count);
+  // The founder cannot work: guarantee workers on the first call so a new
+  // campaign cannot be blocked by rolls containing nobody or only children.
+  const foundingCall = !state.lastRecruit && alive().length === 1;
+  const count = foundingCall ? 2 : rollRecruitCount();
+  state.guests = foundingCall
+    ? [makePerson({ age: 22, sex: "F" }), makePerson({ age: 24, sex: "M" })]
+    : recruitmentGroup(count);
   state.lastRecruit = { day: state.day, count };
   if (!count) {
     log("O chamado ecoou no vale. Ninguém respondeu.");

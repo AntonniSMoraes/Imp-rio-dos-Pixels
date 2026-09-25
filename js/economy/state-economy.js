@@ -5,7 +5,7 @@ function alive() {
 }
 
 function adults() {
-  return alive().filter((person) => person.level >= 5);
+  return alive().filter((person) => person.level >= 5 && isAdultAge(person));
 }
 
 function onMission(person) {
@@ -13,7 +13,11 @@ function onMission(person) {
 }
 
 function workers(job) {
-  return adults().filter((person) => person.job === job && !onMission(person));
+  return adults().filter((person) => {
+    const royal = typeof isRoyalFamilyMember === "function" ? isRoyalFamilyMember(person) : person.id === state.king;
+    const liege = getDirectLiege(person);
+    return !royal && (!liege || liege.id === state.king) && person.job === job && !onMission(person);
+  });
 }
 
 function capacity() {
@@ -111,14 +115,7 @@ function processEconomyAndTaxes() {
 }
 
 function rates() {
-  if (!state) return { wood: 0, iron: 0, food: 0, gold: 0 };
-  const royalPopulation = alive().filter(
-    (person) => !getDirectLiege(person) || getDirectLiege(person).id === state.king,
-  ).length;
-  return {
-    wood: Math.max(0, (state.woodRate || 8) - state.buildings.fire * 2),
-    iron: state.ironRate || 4,
-    food: Math.max(0, (state.foodRate || 10) - royalPopulation * 0.45),
-    gold: adults().length * 0.35,
-  };
+  return Object.fromEntries(["wood", "iron", "food", "gold"].map(key => [key,
+    Number.isFinite(state?.economyBalance?.[key]) ? state.economyBalance[key] : 0,
+  ]));
 }

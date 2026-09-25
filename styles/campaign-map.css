@@ -1,0 +1,16 @@
+#campaign-map-slot { min-height:0; flex:1; height:100%; position:relative; }
+.campaign-atlas { position:relative; width:100%;height:100%; min-height:0; overflow:hidden; background:#527687; }
+.campaign-viewport,.campaign-labels {position:absolute;inset:0;}
+.campaign-viewport canvas {display:block;width:100%;height:100%;touch-action:none;}
+.campaign-labels {pointer-events:none;overflow:hidden;}
+.campaign-labels .city-label {position:absolute;transform:translate(-50%,-100%);pointer-events:auto;white-space:nowrap;background:#142a3de8;color:#eed39b;border:1px solid #98845c;padding:4px 8px;font-size:11px;}
+.campaign-map-tools,.campaign-find {position:absolute;display:flex;align-items:center;gap:7px;flex-wrap:wrap;background:#142a3dde;padding:8px;border-radius:5px;color:#e6e4d5;}
+.campaign-map-tools {left:12px;bottom:40px;right:12px;width:fit-content;}
+.campaign-map-tools label {font-size:12px;display:flex;align-items:center;gap:4px;}
+.campaign-find {top:12px;left:12px;}
+.campaign-find input {width:75px;}
+.campaign-map-help {position:absolute;bottom:5px;left:12px;right:12px;color:#fff;font-size:11px;text-shadow:0 1px 3px #000;pointer-events:none;}
+.campaign-map-error {position:absolute;top:80px;left:12px;right:12px;background:#402c2c;padding:15px;}
+@media(max-width:700px){#campaign-map-slot,.campaign-atlas{min-height:480px;height:60vh}.campaign-map-tools{bottom:58px}.campaign-map-help{max-width:90%}}
+
+.realm-toolbar {flex-wrap:wrap;}
