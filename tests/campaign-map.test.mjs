@@ -11,8 +11,8 @@ function setup() {
 test('3D selection opens territory inspector without mutating campaign',()=>{
  const {ctx,calls}=setup(),before=JSON.stringify(ctx.state);ctx.selectTerritory(219);assert.equal(ctx.selected.index,219);assert.equal(calls.length,1);assert.equal(JSON.stringify(ctx.state),before);ctx.selectTerritory(-1);assert.equal(calls.length,1);
 });
-test('3D promotion selection hands connected territories to promotion dialog',()=>{
- const {ctx,calls}=setup();ctx.pendingLand='noble';ctx.byId=()=>({id:'noble',alive:true,social:1,tiles:[]});ctx.selectTerritory(241);assert.equal(ctx.pendingLand,null);assert.equal(calls[0][0],'noble');assert.equal(calls[0][1][0],241);
+test('3D promotion clicks are routed to the pending multi-selection',()=>{
+ const {ctx,calls}=setup();ctx.pendingLand='noble';ctx.byId=()=>({id:'noble',alive:true,social:1,tiles:[]});ctx.Peerage={chooseMapTile:i=>calls.push(i)};ctx.selectTerritory(241);assert.equal(ctx.pendingLand,'noble');assert.equal(calls[0],241);
 });
 test('border editing protects the capital and does not charge for existing tiles',()=>{
  const {ctx}=setup();const noble={id:'noble',tiles:[241],social:2};ctx.editBorderMode=true;ctx.selectedBorderNoble='noble';ctx.byId=()=>noble;ctx.selectTerritory(240);ctx.selectTerritory(241);assert.equal(ctx.state.gold,100);assert.deepEqual(noble.tiles,[241]);

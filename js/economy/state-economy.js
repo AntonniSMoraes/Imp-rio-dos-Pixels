@@ -9,7 +9,7 @@ function adults() {
 }
 
 function onMission(person) {
-  return Boolean(state?.battle?.active && state.battle.party.includes(person.id)) || (typeof Warfare !== 'undefined' && Warfare.deployed(person.id));
+  return Boolean(person.capturedBy) || Boolean(state?.battle?.active && state.battle.party.includes(person.id)) || (typeof Warfare !== 'undefined' && Warfare.deployed(person.id));
 }
 
 function workers(job) {
@@ -71,60 +71,7 @@ function getDirectLiege(person) {
   return findPerson(state.king);
 }
 
-function processEconomyAndTaxes() {
-  if (!state) return { wood: 0, iron: 0, food: 0, gold: 0 };
-  const taxRate = state.royalTaxRate || 0.25;
-  const region = REGIONS[state.region] || REGIONS.north;
-  const baseYields = {
-    wood: 7 * (region.modifiers?.wood || 1),
-    iron: 4 * (region.modifiers?.iron || 1),
-    food: (7.5 + state.buildings.hunt * 1.2) * (region.modifiers?.food || 1),
-  };
-  const kingTributes = { wood: 0, iron: 0, food: 0, gold: 0 };
-  const opening = new Map(alive().filter(p=>p.social>=2 && p.id!==state.king).map(p=>[p.id,{...(p.treasury || {wood:0,iron:0,food:0,gold:0})}]));
-  // The existing 0.35 gold per adult goes to the resident's direct domain.
-  // Tax new income only: taxing the entire savings daily prevents nobles
-  // from ever saving enough to recruit or invest a descendant.
-  for (const person of adults()) {
-    const lord = person.social>=2 && person.id!==state.king ? person : getDirectLiege(person);
-    if (!lord || lord.id===state.king) state.gold += .35;
-    else { lord.treasury = lord.treasury || {wood:0,iron:0,food:0,gold:0}; lord.treasury.gold = (lord.treasury.gold || 0) + .35; }
-  }
-
-  for (const person of adults()) {
-    if (onMission(person) || person.job === "idle" || person.job === "train") continue;
-    person.treasury = person.treasury || { wood: 0, iron: 0, food: 0, gold: 0 };
-    const production = baseYields[person.job] * getYield(person, person.job);
-    const directLord = getDirectLiege(person);
-    if (!directLord || directLord.id === state.king) {
-      state[person.job] = (state[person.job] || 0) + production;
-    } else {
-      directLord.treasury = directLord.treasury || { wood: 0, iron: 0, food: 0, gold: 0 };
-      directLord.treasury[person.job] += production;
-    }
-  }
-
-  const lords = alive()
-    .filter((person) => person.social >= 2 && person.id !== state.king)
-    .sort((first, second) => first.social - second.social);
-  for (const lord of lords) {
-    lord.treasury = lord.treasury || { wood: 0, iron: 0, food: 0, gold: 0 };
-    const liege = getDirectLiege(lord);
-    for (const resource of ["wood", "iron", "food", "gold"]) {
-      lord.treasury[resource] = lord.treasury[resource] || 0;
-      const taxAmount = Math.max(0, lord.treasury[resource] - (opening.get(lord.id)?.[resource] || 0)) * taxRate;
-      lord.treasury[resource] -= taxAmount;
-      if (!liege || liege.id === state.king) {
-        state[resource] = (state[resource] || 0) + taxAmount;
-        kingTributes[resource] += taxAmount;
-      } else {
-        liege.treasury = liege.treasury || { wood: 0, iron: 0, food: 0, gold: 0 };
-        liege.treasury[resource] += taxAmount;
-      }
-    }
-  }
-  return kingTributes;
-}
+function processEconomyAndTaxes() { return AnnualEconomy.tick(); }
 
 function rates() {
   return Object.fromEntries(["wood", "iron", "food", "gold"].map(key => [key,

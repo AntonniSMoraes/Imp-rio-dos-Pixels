@@ -1,6 +1,7 @@
 'use strict';
 
 function bloodDescendant(person, ancestor, seen = new Set()) {
+  if (typeof ancestor === 'string') ancestor=byId(ancestor);
   if (!person || !ancestor || seen.has(person.id)) return false;
   seen.add(person.id);
   return (person.parents || []).some(id => id === ancestor.id || bloodDescendant(byId(id), ancestor, seen));
@@ -22,10 +23,10 @@ function personalLands(lord) {
   const other = new Set(alive().filter(p=>p.id!==lord.id && p.id!==state.king && p.social>=2).flatMap(p=>p.tiles||[]));
   return [...new Set(land)].filter(i=>TerritoryGeometry.get(i) && !other.has(i));
 }
-function grantDescendantLand(donorId, childId, rank, donated) {
+function grantDescendantLand(donorId, childId, rank, donated, silent = false) {
   const donor=byId(donorId),child=byId(childId);
   const reject=message=>({ok:false,message});
-  if(!donor?.alive || donor.social<2 || !child?.alive || !adult(child) || !bloodDescendant(child,donor)) return reject('Escolha um descendente adulto vivo.');
+  if(!donor?.alive || (typeof Peerage !== 'undefined' && Peerage.consort(donor)) || donor.social<2 || !child?.alive || !adult(child) || (typeof Peerage !== 'undefined' && Peerage.consort(child)) || !(bloodDescendant(child,donor) || donor.partners?.some(r=>r.id===child.id&&r.role!=='consorte') || child.liege===donor.id || donor.id===state.king)) return reject('Escolha um descendente, concubino ou subordinado adulto elegível.');
   const heir=manualHeirOf(donor)||byId(donor.heir)||chooseHeir(donor);
   if(heir?.id===child.id) return reject('Reserve o herdeiro principal; conceda terras aos demais descendentes.');
   if(!Number.isInteger(rank)||rank<2||rank>=donor.social||rank<child.social) return reject('O título deve ser inferior ao do concedente e não pode rebaixar o descendente.');
@@ -38,16 +39,12 @@ function grantDescendantLand(donorId, childId, rank, donated) {
   const tiles=[...new Set([...(child.tiles||[]),...donated])];
   if(tiles.length<(LAND_SIZE[rank]||1)||!areTilesConnected(tiles)) return reject('O título requer pelo menos '+LAND_SIZE[rank]+' vilas conectadas.');
   if(child.liege!==donor.id && direct(donor).length>=(LORD_CAP[donor.social]??0)) return reject('O limite de vassalos diretos foi atingido.');
-  const cost=rank>child.social?promotionCost(rank):0;
-  const purse=donor.id===state.king?state:donor.treasury;
-  if(!purse || (purse.gold||0)<cost) return reject('O cofre do concedente precisa de '+cost+' ouro.');
-  purse.gold-=cost;
   if(donor.id!==state.king) donor.tiles=(donor.tiles||[]).filter(i=>!donated.includes(i));
   child.social=rank;child.tiles=tiles;child.territory=tiles[0];child.liege=donor.id;child.feudalGrantor=donor.id;
-  child.houseHead=child.id;child.unionHead=null;child.retired=false;child.promotedAt=state.promotionSequence++;
+  child.houseHead=child.id;child.unionHead=null;child.retired=false;child.order=child.order&&child.order!=='idle'?child.order:'balance';child.promotedAt=state.promotionSequence++;
   for(const relation of child.partners||[]){const partner=byId(relation.id);if(partner?.alive)updateHouseholdLeadership(child,partner);}
   log(donor.name+' concedeu '+donated.length+' vila(s) e o título de '+SOCIAL[rank]+' a '+child.name+'.');
-  save();render();return {ok:true,message:'Terras e título concedidos.'};
+  if(!silent){save();render();}return {ok:true,message:'Terras e título concedidos.'};
 }
 function nobleRecruitCandidates(lord) {
   return adults().filter(p=>p.id!==state.king&&p.id!==lord.id&&p.social===0&&!onMission(p)&&!isRoyalFamilyMember(p)&&
@@ -77,27 +74,30 @@ function nobleRecruit(lordId, personId) {
 }
 function feudalControls(p) {
   if(!p?.alive||p.social<2)return '';
+  if(typeof Peerage !== 'undefined' && Peerage.consort(p))return '';
   let html='<h4>Administração do domínio</h4><button data-feudal-dialog="'+p.id+'">Terras, descendentes e recrutamento</button>';
   if(p.id===state.king){
+    if(p.age>=50&&adult(chooseHeir(p)))html+='<button data-retire="'+p.id+'">Abdicar em favor do herdeiro</button>';
     const heirs=alive().filter(x=>x.social<p.social&&bloodDescendant(x,p));
     html+='<h4>Sucessão da Coroa</h4><p>Herdeiro: '+esc(byId(p.heir)?.name||'não definido')+(manualHeirOf(p)?' · escolha manual':' · escolha automática')+'</p>';
     if(heirs.length)html+='<select id="royal-heir">'+heirs.map(x=>'<option value="'+x.id+'" '+(p.heir===x.id?'selected':'')+'>'+esc(x.name+' '+x.family)+'</option>').join('')+'</select><button data-nominate-heir="true">Designar herdeiro</button>';
     else html+='<p class="hint">A designação ficará disponível quando houver descendentes vivos.</p>';
   }
-  return html;
+  return html + (typeof AnnualEconomy !== 'undefined' ? AnnualEconomy.summary(p) : '');
 }
 function feudalDialog(id) {
-  const lord=byId(id);if(!lord?.alive||lord.social<2)return;
+  const lord=byId(id);if(!lord?.alive||lord.social<2||(typeof Peerage !== 'undefined'&&Peerage.consort(lord)))return;
   const heir=manualHeirOf(lord)||byId(lord.heir)||chooseHeir(lord);
-  const children=alive().filter(x=>adult(x)&&bloodDescendant(x,lord)&&x.id!==heir?.id&&x.social<lord.social);
+  const children=alive().filter(x=>adult(x)&&!(typeof Peerage !== 'undefined'&&Peerage.consort(x))&&(bloodDescendant(x,lord)||lord.partners?.some(r=>r.id===x.id&&r.role!=='consorte')||x.liege===lord.id||lord.id===state.king)&&x.id!==heir?.id&&x.social<lord.social);
   const seat=lord.id===state.king?(state.capitalIndex??REGIONS[state.region]?.seat??240):lord.territory??lord.tiles?.[0];
   const lands=personalLands(lord).filter(i=>i!==seat&&TerritoryGeometry.get(i).price!==null);
   let body='<p>Cofre do concedente: '+Math.floor((lord.id===state.king?state:lord.treasury)?.gold||0)+' ouro. A sede é protegida; o domínio restante deve continuar conectado.</p>';
+  if(typeof AnnualEconomy !== 'undefined')body+=AnnualEconomy.summary(lord);
   if(children.length&&lands.length&&lord.social>2){
-    body+='<h3>Conceder terras e título</h3><label>Descendente adulto<select id="grant-child">'+children.map(p=>'<option value="'+p.id+'">'+esc(p.name)+' · '+title(p)+'</option>').join('')+'</select></label><label>Título<select id="grant-rank">';
-    for(let rank=2;rank<lord.social;rank++)body+='<option value="'+rank+'">'+SOCIAL[rank]+' · '+LAND_SIZE[rank]+' vilas · '+promotionCost(rank)+' ouro</option>';
+    body+='<h3>Conceder terras e título</h3><label>Destinatário adulto<select id="grant-child">'+children.map(p=>'<option value="'+p.id+'">'+esc(p.name)+' · '+title(p)+'</option>').join('')+'</select></label><label>Título<select id="grant-rank">';
+    for(let rank=2;rank<lord.social;rank++)body+='<option value="'+rank+'">'+SOCIAL[rank]+' · '+LAND_SIZE[rank]+' vilas · gratuito</option>';
     body+='</select></label><fieldset><legend>Vilas a transferir</legend>'+lands.map(i=>'<label style="display:inline-flex;gap:5px;margin:6px"><input type="checkbox" name="grant-tile" value="'+i+'">Vila '+(i+1)+'</label>').join('')+'</fieldset><button data-family-grant="'+id+'">Conceder terras e título</button>';
-  } else body+='<p>Para conceder terras, tenha um descendente adulto fora da sucessão principal, terras disponíveis e título superior a cavaleiro.</p>';
+  } else body+='<p>Para conceder terras, tenha um destinatário adulto elegível fora da sucessão principal, terras disponíveis e título superior a cavaleiro.</p>';
   const candidates=nobleRecruitCandidates(lord),disabled=state.day<(lord.nextNobleRecruitDay||0);
   body+='<h3>Recrutar para este domínio</h3><p>Uma ação por dia. Transferências internas preservam a família; chamados externos custam 10 ouro e têm 50% de chance de trazer um adulto.</p>';
   if(candidates.length)body+='<select id="noble-recruit-person">'+candidates.map(p=>'<option value="'+p.id+'">'+esc(p.name+' '+p.family)+'</option>').join('')+'</select><button data-noble-internal="'+id+'" '+(disabled?'disabled':'')+'>Transferir família de aldeões</button>';

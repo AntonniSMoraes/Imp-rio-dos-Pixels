@@ -1758,3 +1758,13 @@ dialog::backdrop {
   border-radius: 4px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.4);
 }
+/* Title grants: grouped territory controls, one resource per row. */
+.peerage-form { display: grid; gap: 16px; }
+.peerage-form p { margin: 0; }
+.peerage-territory-row { display: grid; grid-template-columns: minmax(110px, 1fr) minmax(0, 2fr); gap: 16px; align-items: start; }
+.peerage-territory-row label, .peerage-lands { display: grid; gap: 8px; min-width: 0; }
+.peerage-territory-row select { width: 100%; min-width: 0; }
+.peerage-resources { display: grid; gap: 10px; }
+.peerage-resource { display: grid; grid-template-columns: minmax(0, 1fr) minmax(90px, 160px); gap: 16px; align-items: center; }
+.peerage-resource input { width: 100%; min-width: 0; box-sizing: border-box; padding: 10px; color: var(--text); background: var(--bg); border: 1px solid var(--line); }
+.peerage-actions { display: flex; flex-wrap: wrap; gap: 10px; padding-top: 4px; }

@@ -6,13 +6,13 @@ function drawMap() {
   if (!state || !document.querySelector('#campaign-map-slot')) return;
   if (campaignMapError) { document.querySelector('#campaign-map-slot').textContent = campaignMapError; return; }
   if (campaignMapRuntime) {
-    try { campaignMapRuntime.mount(state, selected, document.querySelector('#promotion-land-cluster')?.value); }
+    try { campaignMapRuntime.mount(state, selected, Peerage.mapSelection() ?? document.querySelector('#promotion-land-cluster')?.value); }
     catch (error) { failCampaignMap(error); }
     return;
   }
   if (campaignMapLoading) return;
   campaignMapLoading = import('./campaign-runtime.mjs').then(module => {
-    campaignMapRuntime = module.createCampaignMap(selectTerritory);
+    campaignMapRuntime = module.createCampaignMap(selectTerritory, worldPersonCard);
     drawMap();
   }).catch(failCampaignMap);
 }
@@ -24,5 +24,5 @@ function failCampaignMap(error) {
 }
 function mapView() {
   const panel = selected.kind === 'person' ? personPanel(byId(selected.id)) : selected.kind === 'region' ? regionPanel(selected.index) : locationPanel();
-  return '<section class="realm-surface"><div class="realm-toolbar"><span>' + (pendingLand ? 'ESCOLHA TERRAS PARA A PROMOÇÃO' : 'PANGEIA · ' + personalLands(byId(state.king)).length + ' vilas da Coroa') + '</span><button data-toggle-border-edit="true" class="' + (editBorderMode ? 'primary' : '') + '">' + (editBorderMode ? 'Sair da edição' : 'Editar fronteiras') + '</button><button data-action="clear-selection">Vila pioneira</button><button data-view="people">Moradores</button><button data-view="build">Construções</button><button data-view="army">Guerra</button></div><div id="campaign-map-slot"><p>Preparando mapa 3D…</p></div></section><aside class="inspector">' + panel + '</aside>';
+  return '<section class="realm-surface"><div class="realm-toolbar"><span>' + (pendingLand ? 'ESCOLHA TERRAS · '+Peerage.mapLabel() : 'PANGEIA · ' + personalLands(byId(state.king)).length + ' vilas da Coroa') + '</span>' + (pendingLand ? '<button data-peerage-map-confirm="true">Confirmar seleção</button><button data-peerage-map-cancel="true">Voltar à concessão</button>' : '') + '<button data-toggle-border-edit="true" class="' + (editBorderMode ? 'primary' : '') + '">' + (editBorderMode ? 'Sair da edição' : 'Editar fronteiras') + '</button><button data-action="clear-selection">Vila pioneira</button><button data-view="people">Moradores</button><button data-view="build">Construções</button><button data-view="army">Guerra</button></div><div id="campaign-map-slot"><p>Preparando mapa 3D…</p></div></section><aside class="inspector">' + panel + '</aside>';
 }

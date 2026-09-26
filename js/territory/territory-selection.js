@@ -1,21 +1,7 @@
 'use strict';
 function selectTerritory(index) {
   if (!state || !TerritoryGeometry.get(index)) return;
-    if (pendingLand) {
-      const p = byId(pendingLand);
-      if (!p || !p.alive) { pendingLand = null; return toast('O personagem não está disponível.'); }
-      const nextRank = p.social + 1;
-      const targetSize = LAND_SIZE[nextRank] || 1;
-      const currentPersonTiles = (p.tiles || [p.territory]).filter(t => t !== null && t !== undefined);
-      const cluster = getClusterFromTile(index, targetSize, currentPersonTiles);
-      if (!cluster) {
-        return toast('O território precisa ter ' + targetSize + ' vilas conectadas livres pertencentes à Coroa (a Capital Real está protegida).');
-      }
-      const chosenPersonId = pendingLand;
-      pendingLand = null;
-      promotionDialog(chosenPersonId, cluster);
-      return;
-    }
+    if (pendingLand) return Peerage.chooseMapTile(index);
 
     if (editBorderMode) {
       const clickedNoble = alive().find(function(p) {

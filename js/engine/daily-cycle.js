@@ -5,12 +5,14 @@
 function advance() {
   if (!state || !alive().length) { speed = 0; return; }
   upgradeKingdom();
+  if(typeof DomainAutonomy !== 'undefined')DomainAutonomy.economy();
   advanceVillageDay();
   birthCycle();
   politicalCycle();
   governmentCycle();
   const foodBeforeWar = state.food;
   Warfare.tick();
+  if (typeof Dragons !== 'undefined') Dragons.tick();
   if (state.economyBalance) state.economyBalance.food -= foodBeforeWar - state.food;
   save();
   render();

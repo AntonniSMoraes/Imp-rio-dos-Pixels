@@ -13,6 +13,23 @@ function validateSave(save) {
 
   if (save.capitalIndex !== undefined && (!Number.isInteger(save.capitalIndex) || save.capitalIndex < 0 || save.capitalIndex >= 512 || !save.royalLands?.includes(save.capitalIndex))) throw Error('capitalIndex');
 
+  if (save.betrothals !== undefined) {
+    if (!Array.isArray(save.betrothals) || save.betrothals.length > 10000) throw Error('betrothals');
+    const people = new Set(save.people.map(p => p.id)), reserved = new Set(), promises = new Set();
+    for (const p of save.betrothals) {
+      if (!p || typeof p.id !== 'string' || promises.has(p.id) || p.a === p.b ||
+          ![p.a,p.b,p.houseA,p.houseB].every(id => people.has(id)) ||
+          !['promised','married','broken','cancelled'].includes(p.status) ||
+          !Number.isFinite(p.day) || p.day < 0) throw Error('betrothal');
+      promises.add(p.id);
+      if (p.status === 'promised') {
+        if (reserved.has(p.a) || reserved.has(p.b)) throw Error('duplicate betrothal');
+        reserved.add(p.a); reserved.add(p.b);
+      }
+    }
+  }
+  if (save.houseRelations !== undefined && (!save.houseRelations || typeof save.houseRelations !== 'object' || Array.isArray(save.houseRelations) || Object.values(save.houseRelations).some(value => !Number.isFinite(value) || value < -100 || value > 100))) throw Error('houseRelations');
+
   for (const key of ["day", "wood", "iron", "food", "gold", "wins", "births", "nextRecruitDay"])
     if (!Number.isFinite(save[key]) || save[key] < 0) throw Error(key);
   for (const key in BUILD)
@@ -21,6 +38,13 @@ function validateSave(save) {
     if (!Number.isFinite(save.nodes?.[key]) || save.nodes[key] < 0) throw Error(key);
 
   if (typeof validateWarfare === "function") validateWarfare(save);
+  const validAccount = account => account && typeof account === 'object' && !Array.isArray(account) && ['wood','iron','food','gold'].every(k=>account[k]===undefined || (Number.isFinite(account[k]) && account[k]>=0 && account[k]<=1e15));
+  if (save.dragons !== undefined && (!Array.isArray(save.dragons) || save.dragons.length>4 || save.dragons.some(d=>!d || !Number.isInteger(d.id) || !Number.isInteger(d.tile) || d.tile<0 || d.tile>511 || !Number.isInteger(d.arrived) || !Number.isInteger(d.leave) || d.leave<d.arrived || typeof d.brood!=='boolean' || (d.warning!==null && (!Number.isInteger(d.warning)||d.warning<0)))))throw Error('dragons');
+  if(save.dragonRuins!==undefined && (!save.dragonRuins || typeof save.dragonRuins!=='object' || Object.entries(save.dragonRuins).some(([i,d])=>!/^\d+$/.test(i)||Number(i)>511||!Number.isInteger(d)||d<0)))throw Error('dragon ruins');
+  for(const realm of save.warfare?.realms || []) {
+    if(realm.treasury!==undefined && !validAccount(realm.treasury))throw Error('realm treasury');
+    for(const village of Object.values(realm.villageAccounts || {}))if(!validAccount(village.treasury)||!validAccount(village.annualOpening))throw Error('village treasury');
+  }
   const ids = new Set();
   for (const person of [...save.people, ...save.guests]) {
     if (
@@ -73,6 +97,12 @@ function validateSave(save) {
     if (person.manualHeir !== undefined && typeof person.manualHeir !== 'boolean') throw Error('manualHeir');
     if (person.nextNobleRecruitDay !== undefined && (!Number.isFinite(person.nextNobleRecruitDay) || person.nextNobleRecruitDay < 0)) throw Error('nextNobleRecruitDay');
     if (person.feudalGrantor !== undefined && (typeof person.feudalGrantor !== 'string' || !/^[a-zA-Z0-9-]+$/.test(person.feudalGrantor))) throw Error('feudalGrantor');
+    for(const key of ['treasury','annualOpening'])if(person[key]!==undefined && !validAccount(person[key]))throw Error(key);
+    if(person.knighthoodTraining!==undefined && (!Number.isInteger(person.knighthoodTraining)||person.knighthoodTraining<0||person.knighthoodTraining>47))throw Error('knighthood training');
+    const squad=person.conscripts;
+    if(squad!==undefined && (!squad || !Number.isInteger(squad.count)||squad.count<0||squad.count>10||!Number.isFinite(squad.wounds)||squad.wounds<0||squad.wounds>=100||!Number.isInteger(squad.losses)||squad.losses<0||!Number.isInteger(squad.merit)||squad.merit<0||typeof squad.recommended!=='boolean'))throw Error('conscripts');
+    const request=person.promotionRequest;
+    if(request!==undefined && (!request || !Number.isInteger(request.tier)||request.tier<1||request.tier>7||!Array.isArray(request.tiles)||request.tiles.length>512||request.tiles.some(i=>!Number.isInteger(i)||i<0||i>511)||!validAccount(request.fee)||!Number.isInteger(request.day)||request.day<0))throw Error('promotion request');
     normalizeLifeStage(person);
     ensureRaceData(person);
     validateReproduction(person, save);
@@ -81,6 +111,7 @@ function validateSave(save) {
   for (const entry of save.logs)
     if (typeof entry.text !== "string" || !Number.isFinite(entry.day)) throw Error(entry);
   if (save.battle) {
+    if (save.battle.enemies !== undefined && (!Array.isArray(save.battle.enemies) || save.battle.enemies.length > 12 || save.battle.enemies.some(p => !p || typeof p.id !== 'string' || typeof p.alive !== 'boolean' || !Number.isFinite(p.hp) || p.hp < 0 || p.hp > 100 || !Number.isFinite(p.level) || !Number.isFinite(p.xp) || !['força','vigor','magia','agilidade'].every(k => Number.isFinite(p.attrs?.[k]) && p.attrs[k] > 0)))) throw Error('expedition enemies');
     if (
       !Array.isArray(save.battle.party) ||
       !save.battle.party.every((id) => save.people.some((person) => person.id === id)) ||

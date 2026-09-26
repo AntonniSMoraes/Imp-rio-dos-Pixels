@@ -3,6 +3,7 @@ import { settlementSite } from './settlements.mjs';
 import { worldPoint, heightAt } from './world-data.mjs';
 export function buildWarTokens(world) {
   const group=new THREE.Group();
+  if(world.people?.length)return group; // Individual clickable tokens replace anonymous army counters.
   for(const army of world.armies||[]){
     const index=army.path[army.step],p=settlementSite([index])||worldPoint(index),battle=army.status==='battle';
     const add=(count,color,side)=>{
@@ -12,7 +13,7 @@ export function buildWarTokens(world) {
         pixel.position.set(x,Math.max(.2,heightAt(x,z))+.5,z);pixel.userData.tile=index;group.add(pixel);
       }
     };
-    add(army.count,'#ffe095',-1);
+    add(army.count,army.hostile?'#fa5454':'#ffe095',-1);
     if(battle)add(Math.ceil(army.enemy),'#fa5454',1);
   }
   return group;
