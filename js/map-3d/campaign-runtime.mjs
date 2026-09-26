@@ -6,7 +6,7 @@ export function createCampaignMap(onSelect) {
   host.className = 'campaign-atlas';
   host.innerHTML = `<div class="campaign-viewport"></div><div class="campaign-labels"></div>
     <div class="campaign-map-tools"><button data-camera="home">Visão geral</button><button data-camera="capital">Capital</button><button data-camera="in" aria-label="Aproximar mapa">＋</button><button data-camera="out" aria-label="Afastar mapa">−</button><label><input type="checkbox" data-layer="borders" checked> Fronteiras</label><label><input type="checkbox" data-layer="forests" checked> Florestas</label></div>
-    <form class="campaign-find"><label>Território <input name="territory" type="number" min="1" max="512" value="1" required aria-label="Número do território"></label><button>Localizar</button></form><p class="campaign-map-help">Arraste para girar · roda para aproximar · clique para inspecionar</p><p class="campaign-map-error" role="status" hidden></p>`;
+    <div class="campaign-domain-legend"><span style="color:#f4cb6d">■ Coroa</span><span style="color:#95cafa">■ Vassalos · cores por casa</span><span>□ Terras livres</span></div><form class="campaign-find"><label>Território <input name="territory" type="number" min="1" max="512" value="1" required aria-label="Número do território"></label><button>Localizar</button></form><p class="campaign-map-help">Arraste para girar · roda para aproximar · clique para inspecionar</p><p class="campaign-map-error" role="status" hidden></p>`;
   const viewport = host.querySelector('.campaign-viewport');
   let viewer, world, worldKey, selectionKey;
   host.addEventListener('click', event => {
@@ -31,19 +31,26 @@ export function createCampaignMap(onSelect) {
   });
   return {
     detach() { host.remove(); },
+    focus(index) { viewer?.focus(index); },
     mount(state, selection, preview) {
       const slot = document.querySelector('#campaign-map-slot');
       if (!slot) return;
       if (host.parentNode !== slot) slot.replaceChildren(host);
       const next = describeWorld(state);
-      const key = JSON.stringify([next.owners, next.cities]);
+      const key = JSON.stringify([next.owners, next.cities, next.armies]);
       world = next;
       if (!viewer) viewer = createViewer(viewport, host.querySelector('.campaign-labels'), world, onSelect);
       else if (key !== worldKey) viewer.update(world);
+      if (key !== worldKey) {
+        const legend = host.querySelector('.campaign-domain-legend'); legend.replaceChildren();
+        const entries = new Map(world.owners.filter(owner=>owner.id!=='free').map(owner=>[owner.id,owner]));
+        for (const owner of entries.values()) { const item=document.createElement('span');item.style.color=owner.color;item.textContent='■ '+(owner.id==='crown'?'Coroa':(owner.foreign?'':'Vassalo · ')+owner.label);legend.append(item); }
+        const free=document.createElement('span');free.textContent='□ Terras livres';legend.append(free);
+      }
       worldKey = key;
       const tiles = preview ? preview.split(',').map(Number) : selection.kind === 'region' ? [selection.index] : [];
       const selected = JSON.stringify(tiles);
-      if (selected !== selectionKey) { viewer.select(tiles); selectionKey = selected; }
+      if (selected !== selectionKey) { viewer.select(tiles); selectionKey = selected; if(selection.kind==='region')host.querySelector('input[name="territory"]').value=selection.index+1; }
     },
   };
 }

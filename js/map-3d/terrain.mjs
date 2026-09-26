@@ -1,3 +1,4 @@
+import { surfaceHeight } from './settlements.mjs';
 import * as THREE from 'three';
 import { heightAt, worldPoint, provinces } from './world-data.mjs';
 
@@ -72,7 +73,7 @@ export function buildDomains(world) {
   const group=new THREE.Group(), internal=[], political=[];
   for(const province of provinces.all().provinces) {
     const owner=world.owners[province.index];
-    if(owner.id!=='free') group.add(surfacePatch(province.index,owner.color,.16));
+    if(owner.id!=='free') group.add(surfacePatch(province.index,owner.color,owner.id==='crown'?.34:.30));
   }
   for(const edge of provinces.all().edges) {
     const owners=edge.owners.map(i=>world.owners[i].id);
@@ -94,10 +95,27 @@ export function selectionPatch(index) { return surfacePatch(index,'#fff1a6',.43)
 export function buildCities(world) {
   const group = new THREE.Group();
   for (const city of world.cities) {
-    const point = worldPoint(city.index), base = Math.max(.16, heightAt(point.x, point.z));
+    if (!city.point) continue;
+    const point = city.point || worldPoint(city.index), base = point.base ?? Math.max(.16, heightAt(point.x, point.z));
     const castle = new THREE.Group();
+    const small = point.kind !== 'castle';
+    const scale = point.kind === 'hut' ? .15 : point.kind === 'cottage' ? .3 : point.kind === 'manor' ? 1.7 : 1;
+    const foundationHeight = small ? .045 : Math.max(.04, base - (point.minHeight ?? base) + .04);
+    const foundation = new THREE.Mesh(new THREE.BoxGeometry(small ? .85*scale : 2.2, foundationHeight, small ? .7*scale : 1.8), new THREE.MeshStandardMaterial({color:'#858475',roughness:1}));
+    foundation.position.y = -foundationHeight / 2; castle.add(foundation);
     const stone = new THREE.MeshStandardMaterial({ color: '#d0c5a8', roughness: .85 });
-    const roof = new THREE.MeshStandardMaterial({ color: city.capital ? '#485969' : '#714e49', roughness: .85 });
+    const roof = new THREE.MeshStandardMaterial({ color: city.color || '#714e49', roughness: .85 });
+    if (small) {
+      const timber = new THREE.MeshStandardMaterial({color:'#6a4b32',roughness:1});
+      for (const dx of [-.32*scale,.32*scale]) for (const dz of [-.23*scale,.23*scale]) {
+        const height=Math.max(.05,base-surfaceHeight(point.x+dx,point.z+dz)+.025);
+        const post=new THREE.Mesh(new THREE.BoxGeometry(.065*scale,height,.065*scale),timber);
+        post.position.set(dx,-height/2,dz);castle.add(post);
+      }
+      const home = new THREE.Mesh(new THREE.BoxGeometry(.72*scale,.5*scale,.55*scale),stone);home.position.y=.25*scale;
+      const top = new THREE.Mesh(new THREE.ConeGeometry(.47*scale,.35*scale,4),roof);top.rotation.y=Math.PI/4;top.position.y=.66*scale;
+      castle.add(home,top);
+    } else {
     const block = new THREE.Mesh(new THREE.BoxGeometry(1.6, .9, 1.2), stone);
     block.position.y = .45;
     castle.add(block);
@@ -108,8 +126,9 @@ export function buildCities(world) {
       top.position.set(x, 1.7, z);
       castle.add(tower, top);
     }
+    }
     castle.position.set(point.x, base, point.z);
-    castle.userData.tile = city.index;
+    castle.userData.tile = point.province ?? city.index;
     group.add(castle);
   }
   return group;

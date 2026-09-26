@@ -11,6 +11,8 @@ function validateSave(save) {
     save.guests.length > 3
   ) throw Error("save");
 
+  if (save.capitalIndex !== undefined && (!Number.isInteger(save.capitalIndex) || save.capitalIndex < 0 || save.capitalIndex >= 512 || !save.royalLands?.includes(save.capitalIndex))) throw Error('capitalIndex');
+
   for (const key of ["day", "wood", "iron", "food", "gold", "wins", "births", "nextRecruitDay"])
     if (!Number.isFinite(save[key]) || save[key] < 0) throw Error(key);
   for (const key in BUILD)
@@ -18,6 +20,7 @@ function validateSave(save) {
   for (const key of ["wood", "iron", "food"])
     if (!Number.isFinite(save.nodes?.[key]) || save.nodes[key] < 0) throw Error(key);
 
+  if (typeof validateWarfare === "function") validateWarfare(save);
   const ids = new Set();
   for (const person of [...save.people, ...save.guests]) {
     if (
@@ -67,6 +70,9 @@ function validateSave(save) {
       !(person.job in JOBS) ||
       (person.vocation && !CLASSES.includes(person.vocation))
     ) throw Error("stats");
+    if (person.manualHeir !== undefined && typeof person.manualHeir !== 'boolean') throw Error('manualHeir');
+    if (person.nextNobleRecruitDay !== undefined && (!Number.isFinite(person.nextNobleRecruitDay) || person.nextNobleRecruitDay < 0)) throw Error('nextNobleRecruitDay');
+    if (person.feudalGrantor !== undefined && (typeof person.feudalGrantor !== 'string' || !/^[a-zA-Z0-9-]+$/.test(person.feudalGrantor))) throw Error('feudalGrantor');
     normalizeLifeStage(person);
     ensureRaceData(person);
     validateReproduction(person, save);

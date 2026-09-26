@@ -12,7 +12,7 @@ function power(person) {
 function startBattle() {
   if (!state || state.battle?.active || selection.length !== 4 || !state.buildings.barracks) return;
   const party = selection.map((id) => state.people.find((person) => person.id === id));
-  if (party.some((person) => !person?.alive || person.level < 5 || person.hp < 30))
+  if (party.some((person) => !person?.alive || onMission(person) || person.level < 5 || person.hp < 30))
     return toast("Escolha quatro adultos com pelo menos 30% de vida.");
   if (state.food < 15) return toast("A patrulha precisa de 15 alimentos.");
   state.food -= 15;
