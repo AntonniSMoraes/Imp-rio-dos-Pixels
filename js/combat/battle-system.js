@@ -31,61 +31,20 @@ function startBattle() {
 }
 
 function battleRound() {
-  const battle = state?.battle;
-  if (!battle?.active) return;
-  const party = battle.party
-    .map((id) => state.people.find((person) => person.id === id))
-    .filter((person) => person.alive);
-  if (!party.length) {
-    battle.active = false;
-    return;
+  const battle=state?.battle;if(!battle?.active)return;
+  const party=battle.party.map(id=>state.people.find(p=>p.id===id)).filter(p=>p?.alive&&!p.capturedBy);
+  if(!party.length){battle.active=false;return;}
+  if(!battle.enemies){
+    const strength=7+state.wins*1.5;
+    battle.enemies=Array.from({length:4},(_,i)=>({id:'wolf-'+state.day+'-'+i,name:'Lobo gélido',age:18,alive:true,hp:Math.min(100,battle.enemyHP/battle.maxHP*100),level:5+Math.floor(state.wins/2),xp:0,attrs:{força:strength*(.8+Math.random()*.4),vigor:strength,magia:1,agilidade:strength*(.9+Math.random()*.3)}}));
+    battle.maxHP=400;
   }
-
-  battle.round++;
-  let damage = 0;
-  for (const person of party) {
-    let value = power(person) * (person.spouse && party.some((ally) => ally.id === person.spouse) ? 1.15 : 1);
-    if (person.vocation === "Berserker") value *= 1 + (100 - person.hp) / 100;
-    if (person.vocation === "Mago") value *= 1.2;
-    if (person.vocation === "Assassino" && battle.round === 1) value *= 1.5;
-    if (["Clérigo", "Santo"].includes(person.vocation)) {
-      const target = party.slice().sort((first, second) => first.hp - second.hp)[0];
-      target.hp = Math.min(100, target.hp + (person.vocation === "Santo" ? 12 : 7) * MULT[person.rank]);
-      value *= 0.45;
-    }
-    damage += value * 0.55;
-  }
-
-  battle.enemyHP = Math.max(0, battle.enemyHP - damage);
-  battle.logs.unshift("Rodada " + battle.round + ": " + Math.round(damage) + " de dano à alcateia.");
-  if (battle.enemyHP <= 0) {
-    battle.active = false;
-    battle.won = true;
-    state.wins++;
-    state.gold += 45;
-    state.food += 30;
-    state.iron += 12;
-    party.forEach((person) => {
-      person.xp += 50;
-      if (person.xp >= 100) {
-        person.level++;
-        person.xp -= 100;
-      }
-    });
-    log("Vitória! +45 ouro, +30 alimento e +12 ferro.");
-    return;
-  }
-
-  const target = pick(party);
-  let damageTaken = Math.max(5, 23 + state.wins * 3 - target.attrs.vigor * 0.25);
-  if (target.vocation === "Paladino") damageTaken *= 0.55;
-  if (target.vocation === "Arqueiro") damageTaken *= 0.7;
-  target.hp = Math.max(0, target.hp - damageTaken);
-  battle.logs.unshift(target.name + " recebeu " + Math.round(damageTaken) + " de dano.");
-  if (target.hp <= 0) death(target, "em combate");
-  if (!party.some((person) => person.alive)) {
-    battle.active = false;
-    log("A expedição foi derrotada.");
-  }
-  battle.logs = battle.logs.slice(0, 25);
+  const result=WarCombat.round(party,battle.enemies);battle.round++;
+  battle.enemyHP=battle.enemies.filter(p=>p.alive).reduce((n,p)=>n+p.hp,0);
+  battle.logs.unshift('Rodada '+battle.round+': '+party.filter(WarCombat.fit).length+' aliados e '+battle.enemies.filter(WarCombat.fit).length+' lobos em condições de lutar.');
+  if(result==='left'){
+    battle.active=false;battle.won=true;state.wins++;state.gold+=45;state.food+=30;state.iron+=12;
+    party.filter(p=>p.alive).forEach(p=>WarCombat.train(p,50));log('Vitória! +45 ouro, +30 alimento e +12 ferro.');
+  }else if(result==='right'||battle.round>=20){battle.active=false;log('A expedição foi derrotada ou precisou recuar.');}
+  battle.logs=battle.logs.slice(0,25);
 }

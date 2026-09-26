@@ -1,6 +1,6 @@
 "use strict";
 
-const ACTIVE_RACES = Object.freeze(['human', 'elf', 'darkElf', 'kobold', 'harpy', 'wolf', 'cat', 'bunny']);
+const ACTIVE_RACES = Object.freeze(['human', 'elf', 'darkElf', 'kobold', 'harpy', 'lamia', 'wolf', 'cat', 'bunny']);
 
 function ancestryFromRace(race = 'human') {
   const depth = (race.match(/^(?:half-)+/) || [''])[0].length / 5;

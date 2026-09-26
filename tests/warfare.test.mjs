@@ -2,16 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
-import '../js/territory/provinces.js';
-const geometry=globalThis.TerritoryGeometry;
-function setup(){
- const state={day:1,region:'central',king:'king',royalLands:[240],people:[{id:'king',name:'Rei',social:8,age:24,hp:100,alive:true,tiles:[]},{id:'soldier',name:'Guarda',social:1,age:24,hp:100,alive:true,tiles:[]}],buildings:{barracks:1},gold:500,food:500};
- const c=vm.createContext({state,TerritoryGeometry:geometry,alive:()=>state.people.filter(p=>p.alive),adult:p=>p.age>=18,byId:id=>state.people.find(p=>p.id===id),domainPeople:()=>state.people,personalLands:p=>p.tiles,log(){},power:()=>100,death:p=>{p.alive=false;}});
- vm.runInContext(readFileSync(new URL('../js/war/warfare.js',import.meta.url),'utf8'),c);c.onMission=p=>c.Warfare.deployed(p.id)||Boolean(state.battle?.active&&state.battle.party.includes(p.id));c.Warfare.ensure();return c;
-}
+import {setupWorld as setup,geometry} from './helpers/world-engine.mjs';
 function frontier(c){for(const r of c.state.warfare.realms)for(const target of r.tiles){const free=geometry.get(target).neighbors.find(i=>geometry.get(i).price!==null&&!c.Warfare.owner(i));if(free!==undefined){c.state.royalLands.push(free);return{r,target};}}throw Error('frontier');}
 test('rival initialization is deterministic, connected and never overwrites existing land',()=>{
- const c=setup(),snapshot=JSON.stringify(c.state.warfare);c.Warfare.ensure();assert.equal(JSON.stringify(c.state.warfare),snapshot);assert.equal(c.state.warfare.realms.length,3);const used=new Set([240]);for(const r of c.state.warfare.realms)for(const i of r.tiles){assert.ok(!used.has(i));used.add(i);}assert.equal(JSON.stringify(setup().state.warfare),snapshot);
+ const c=setup(),snapshot=JSON.stringify(c.state.warfare);c.Warfare.ensure();assert.equal(JSON.stringify(c.state.warfare),snapshot);assert.equal(c.state.warfare.realms.length,7);const used=new Set([240]);for(const r of c.state.warfare.realms)for(const i of r.tiles){assert.ok(!used.has(i));used.add(i);}assert.equal(JSON.stringify(setup().state.warfare),snapshot);
 });
 test('war must be declared, troops cannot deploy twice, victory transfers land and releases returning troops',()=>{
  const c=setup(),{r,target}=frontier(c);assert.equal(c.Warfare.mobilize('king',target,['king','soldier']).ok,false);c.Warfare.declare(r.id);assert.equal(c.Warfare.mobilize('king',target,['king','soldier']).ok,true);assert.equal(c.Warfare.deployed('soldier'),true);assert.equal(c.Warfare.mobilize('king',target,['king','soldier']).ok,false);
@@ -33,5 +27,5 @@ test('starting central realm can reach a rival over land',()=>{
  const c=setup();assert.ok(c.state.warfare.realms.some(r=>c.Warfare.route([240],r.capital,r.id)));
 });
 test('defeat preserves enemy ownership and cannot claim a province twice',()=>{
- const c=setup(),{r,target}=frontier(c);c.Warfare.declare(r.id);r.garrisons[target]=1000;c.power=()=>1;c.Warfare.mobilize('king',target,['king','soldier']);for(let i=0;i<15;i++)c.Warfare.tick();assert.ok(r.tiles.includes(target));assert.ok(!c.state.royalLands.includes(target));assert.equal(c.Warfare.deployed('soldier'),false);
+ const c=setup(),{r,target}=frontier(c);c.Warfare.declare(r.id);for(const p of c.Societies.garrison(r.id,target))for(const k of Object.keys(p.attrs))p.attrs[k]=1000;for(const p of c.state.people)for(const k of Object.keys(p.attrs))p.attrs[k]=1;c.Warfare.mobilize('king',target,['king','soldier']);for(let i=0;i<15;i++)c.Warfare.tick();assert.ok(r.tiles.includes(target));assert.ok(!c.state.royalLands.includes(target));assert.equal(c.Warfare.deployed('soldier'),false);
 });

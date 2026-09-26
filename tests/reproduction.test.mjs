@@ -29,7 +29,7 @@ function simulation(race = 'human') {
 test('racial gestation, recovery and twin probabilities follow the chosen rules', () => {
   const { ctx } = simulation();
   for (const [race, gestation, recovery, twins] of [
-    ['human', 36, 24, 0], ['elf', 63, 48, 0], ['darkElf', 63, 48, 0],
+    ['human', 36, 96, 0], ['elf', 63, 48, 0], ['darkElf', 63, 48, 0],
     ['wolf', 36, 12, 0.4], ['cat', 36, 12, 0.4], ['bunny', 36, 12, 0.4], ['half-wolf', 36, 24, 0.2],
   ]) {
     const profile = ctx.reproductionProfile({ race });
@@ -53,10 +53,10 @@ test('failed attempts wait four days; conception does not create a baby', () => 
   assert.equal(ctx.state.births, 0);
   day(45);
   assert.equal(ctx.state.births, 1);
-  assert.equal(mother.reproduction.recoveryUntil, 69);
-  for (let date = 46; date < 73; date++) day(date);
+  assert.equal(mother.reproduction.recoveryUntil, 141);
+  for (let date = 46; date < 145; date++) day(date);
   assert.equal(mother.reproduction.pregnancy, null);
-  day(73);
+  day(145);
   assert.ok(mother.reproduction.pregnancy);
 });
 
@@ -148,4 +148,20 @@ test('existing pregnancies reserve housing before other couples try conceiving',
   day(9);
   assert.equal(ctx.reservedBirths(), 1);
   assert.equal(ctx.state.people.filter(person => person.reproduction?.pregnancy).length, 1);
+});
+
+test('human waiting grows per mother including deceased children; nonhumans keep racial interval',()=>{
+ const {ctx,mother}=simulation();
+ for(let i=0;i<3;i++)ctx.state.people.push({id:'old'+i,parents:[mother.id],alive:false});
+ assert.equal(ctx.reproductionProfile(mother).recoveryDays,144);
+ const other={...mother,id:'other'};assert.equal(ctx.reproductionProfile(other).recoveryDays,96);
+ for(let i=0;i<12;i++)ctx.state.people.push({id:'more'+i,parents:[mother.id]});
+ assert.equal(ctx.reproductionProfile(mother).recoveryDays,240);
+ mother.race='elf';delete mother.ancestry;assert.equal(ctx.reproductionProfile(mother).recoveryDays,48);
+});
+
+test('imported pregnancy spacing uses the imported genealogy rather than the open campaign',()=>{
+ const {ctx,mother}=simulation();const imported=JSON.parse(JSON.stringify(mother));imported.lastBirth=10;delete imported.reproduction;
+ const save={day:20,people:[imported,...Array.from({length:4},(_,i)=>({id:'import'+i,parents:[imported.id]}))]};
+ ctx.validateReproduction(imported,save);assert.equal(imported.reproduction.recoveryUntil,178);
 });

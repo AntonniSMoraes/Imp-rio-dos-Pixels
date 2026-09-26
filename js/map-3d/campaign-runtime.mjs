@@ -1,7 +1,7 @@
 import { createViewer } from './viewer.mjs';
 import { describeWorld } from './world-data.mjs';
 
-export function createCampaignMap(onSelect) {
+export function createCampaignMap(onSelect, onPerson) {
   const host = document.createElement('div');
   host.className = 'campaign-atlas';
   host.innerHTML = `<div class="campaign-viewport"></div><div class="campaign-labels"></div>
@@ -37,9 +37,10 @@ export function createCampaignMap(onSelect) {
       if (!slot) return;
       if (host.parentNode !== slot) slot.replaceChildren(host);
       const next = describeWorld(state);
-      const key = JSON.stringify([next.owners, next.cities, next.armies]);
+      const key = JSON.stringify([next.owners, next.cities, next.armies, next.people, next.habitats, next.dragons]);
       world = next;
-      if (!viewer) viewer = createViewer(viewport, host.querySelector('.campaign-labels'), world, onSelect);
+      host.querySelector('[data-camera="capital"]').disabled = !world.cities.some(city=>city.capital);
+      if (!viewer) viewer = createViewer(viewport, host.querySelector('.campaign-labels'), world, onSelect, undefined, onPerson);
       else if (key !== worldKey) viewer.update(world);
       if (key !== worldKey) {
         const legend = host.querySelector('.campaign-domain-legend'); legend.replaceChildren();

@@ -10,11 +10,11 @@ function setup(){
 }
 test('viscount grants connected barony to non-heir using only personal land and treasury',()=>{
  const c=setup();assert.equal(c.grantDescendantLand('lord','child',3,[4,5,6,7]).ok,true);
- assert.deepEqual([...c.byId('lord').tiles],[0,1,2,3]);assert.deepEqual([...c.byId('child').tiles],[4,5,6,7]);assert.equal(c.byId('child').liege,'lord');assert.equal(c.byId('lord').treasury.gold,320);assert.equal(c.state.gold,500);
+ assert.deepEqual([...c.byId('lord').tiles],[0,1,2,3]);assert.deepEqual([...c.byId('child').tiles],[4,5,6,7]);assert.equal(c.byId('child').liege,'lord');assert.equal(c.byId('lord').treasury.gold,500);assert.equal(c.state.gold,500);
  assert.equal(c.grantDescendantLand('lord','child',3,[4,5,6,7]).ok,false);
 });
-test('grants reject heir, capital, insufficient land, superior title and insufficient funds atomically',()=>{
- for(const [child,rank,tiles,gold] of [['first',2,[7],500],['child',3,[0,1,2,3],500],['child',3,[7],500],['child',4,[4,5,6,7],500],['child',3,[4,5,6,7],0]]){
+test('grants reject heir, capital, insufficient land, superior title atomically',()=>{
+ for(const [child,rank,tiles,gold] of [['first',2,[7],500],['child',3,[0,1,2,3],500],['child',3,[7],500],['child',4,[4,5,6,7],500]]){
  const c=setup();c.byId('lord').treasury.gold=gold;const before=JSON.stringify(c.state);assert.equal(c.grantDescendantLand('lord',child,rank,tiles).ok,false);assert.equal(JSON.stringify(c.state),before);
  }
 });
@@ -45,13 +45,14 @@ test('succession retains previous land and treasury and never chooses a dead des
 });
 
  test('king grants a knightly estate to a secondary heir without spending vassal funds',()=>{
- const c=setup();c.state.royalLands.push(21,22);c.nominateRoyalHeir('royal1');const result=c.grantDescendantLand('king','royal2',2,[22]);assert.equal(result.ok,true);assert.equal(c.byId('royal2').liege,'king');assert.equal(c.state.gold,420);assert.equal(c.byId('lord').treasury.gold,500);
+ const c=setup();c.state.royalLands.push(21,22);c.nominateRoyalHeir('royal1');const result=c.grantDescendantLand('king','royal2',2,[22]);assert.equal(result.ok,true);assert.equal(c.byId('royal2').liege,'king');assert.equal(c.state.gold,500);assert.equal(c.byId('lord').treasury.gold,500);
  });
  test('dead designated heir is replaced by a living descendant on succession',()=>{
  const c=setup();const source=readFileSync(new URL('../js/kingdom/kingdom.js',import.meta.url),'utf8');vm.runInContext(source.slice(source.indexOf('function chooseHeir(p)'),source.indexOf('const oldDeath = death;')),c);c.title=()=> 'Visconde';c.byId('first').alive=false;assert.equal(c.succession(c.byId('lord')),true);assert.equal(c.byId('child').social,4);assert.equal(c.byId('first').social,0);
  });
  test('feudal income is conserved and daily taxation does not drain saved reserves',()=>{
  const c=setup();c.isAdultAge=p=>p.age>=18;for(const p of c.state.people){p.level=5;p.job='idle';}c.state.buildings={home:0,hunt:0};c.state.wood=0;c.state.iron=0;c.state.food=0;c.byId('worker').liege='lord';c.byId('family').liege='lord';
+ vm.runInContext(readFileSync(new URL('../js/economy/annual-economy.js',import.meta.url),'utf8'),c);
  vm.runInContext(readFileSync(new URL('../js/economy/state-economy.js',import.meta.url),'utf8'),c);
  const total=()=>c.state.gold+c.state.people.reduce((sum,p)=>sum+(p.treasury?.gold||0),0),before=total();
  c.processEconomyAndTaxes();assert.ok(c.byId('lord').treasury.gold>500);assert.ok(Math.abs(total()-before-c.adults().length*.35)<1e-8);

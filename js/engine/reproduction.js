@@ -2,33 +2,42 @@
 
 const REPRODUCTION = Object.freeze({ version: 1, attemptInterval: 4, gestationDays: 36, recoveryDays: 24 });
 
-function reproductionProfile(person) {
+function humanRecovery(person, people = typeof state !== 'undefined' ? state?.people || [] : []) {
+  const count = people.filter(p => p.parents?.includes(person.id)).length;
+  return Math.min(240, 96 + Math.max(0, count - 1) * 24);
+}
+
+function reproductionProfile(person, people) {
   const ancestry = normalizedAncestry(person);
   const elves = (ancestry.elf || 0) + (ancestry.darkElf || 0);
   const beasts = ['wolf', 'cat', 'bunny', 'beastfolk'].reduce((sum, race) => sum + (ancestry[race] || 0), 0);
   const fertility = Object.entries(ancestry).reduce((sum, [race, share]) => sum + share * (RACES[race].fertilityRate ?? 1), 0);
   return {
     gestationDays: Math.round(REPRODUCTION.gestationDays * (1 + elves * 0.75)),
-    recoveryDays: beasts > 0.999999 ? 12 : Math.round(REPRODUCTION.recoveryDays * (1 + elves)),
+    recoveryDays: ancestry.human > .999999 ? humanRecovery(person, people) : beasts > 0.999999 ? 12 : Math.round(REPRODUCTION.recoveryDays * (1 + elves)),
     twinChance: 0.4 * beasts,
     conceptionChance: Math.min(0.35, 0.2 * fertility),
   };
 }
 
-function ensureReproduction(person, day) {
+function ensureReproduction(person, day, people) {
   if (!person.reproduction) {
     person.reproduction = {
       version: REPRODUCTION.version,
       nextAttemptDay: day + REPRODUCTION.attemptInterval,
-      recoveryUntil: person.lastBirth >= 0 ? Math.ceil(person.lastBirth + reproductionProfile(person).recoveryDays) : 0,
+      recoveryUntil: person.lastBirth >= 0 ? Math.ceil(person.lastBirth + reproductionProfile(person, people).recoveryDays) : 0,
       pregnancy: null,
     };
+  }
+  if (!person.reproduction.humanSpacingVersion && normalizedAncestry(person).human > .999999) {
+    if (person.lastBirth >= 0) person.reproduction.recoveryUntil = Math.max(person.reproduction.recoveryUntil, Math.ceil(person.lastBirth + humanRecovery(person, people)));
+    person.reproduction.humanSpacingVersion = 1;
   }
   return person.reproduction;
 }
 
 function validateReproduction(person, save) {
-  const cycle = ensureReproduction(person, save.day);
+  const cycle = ensureReproduction(person, save.day, save.people);
   if (cycle.version !== 1 || !Number.isInteger(cycle.nextAttemptDay) || cycle.nextAttemptDay < 0 ||
       !Number.isInteger(cycle.recoveryUntil) || cycle.recoveryUntil < 0) throw Error('reproduction');
   const pregnancy = cycle.pregnancy;
@@ -98,10 +107,11 @@ function deliverPregnancy(mother) {
   }
   cycle.pregnancy = null;
   mother.lastBirth = state.day;
-  cycle.recoveryUntil = state.day + pregnancy.recoveryDays;
+  const recovery = normalizedAncestry(mother).human > .999999 ? humanRecovery(mother) : pregnancy.recoveryDays;
+  cycle.recoveryUntil = state.day + recovery;
   cycle.nextAttemptDay = cycle.recoveryUntil + REPRODUCTION.attemptInterval;
   state.food = Math.max(0, state.food - 5 * pregnancy.babies);
-  log((pregnancy.babies === 2 ? 'Gêmeos: ' : 'Nascimento: ') + children.join(' e ') + '. Pais: ' + father.name + ' e ' + mother.name + '. Recuperação: ' + pregnancy.recoveryDays + ' dias.');
+  log((pregnancy.babies === 2 ? 'Gêmeos: ' : 'Nascimento: ') + children.join(' e ') + '. Pais: ' + father.name + ' e ' + mother.name + '. Recuperação: ' + recovery + ' dias.');
   if (alive().length > capacity()) log('O parto aumentou a população além da moradia disponível. Construa mais abrigos.');
 }
 

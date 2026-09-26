@@ -70,7 +70,7 @@ function advanceVillageDay() {
   }
   state.day++;
   const beforeEconomy = { wood: state.wood, iron: state.iron, food: state.food, gold: state.gold };
-  const royalPopulation = alive().filter((person) => !getDirectLiege(person) || getDirectLiege(person).id === state.king).length;
+  const royalPopulation = alive().filter((person) => AnnualEconomy.owner(person)?.id === state.king).length;
   const tributes = processEconomyAndTaxes();
   state.woodRate = tributes.wood;
   state.ironRate = tributes.iron;
@@ -93,7 +93,7 @@ function advanceVillageDay() {
     ageOneDay(person);
     const outside = ["wood", "iron", "food"].includes(person.job) && !onMission(person);
     const sheltered = !outside || (state.buildings.fire >= 1 && state.wood > 0) || person.barbarian;
-    if (state.food <= 0 && (!getDirectLiege(person) || getDirectLiege(person).id === state.king)) person.hp -= 3;
+    if ((AnnualEconomy.owner(person)?.id === state.king ? state.food : AnnualEconomy.owner(person)?.treasury?.food || 0) <= 0) person.hp -= 3;
     else if (!sheltered) person.hp -= temperature() < -20 ? 4 : 2;
     else person.hp = Math.min(100, person.hp + 2.5);
     if (person.level < 5) {
