@@ -182,7 +182,7 @@ function upgradeKingdom() {
   state.fertilityCursor = state.fertilityCursor || 0;
   state.promotionSequence = state.promotionSequence || 1;
   
-  const startSeat = (REGIONS[state.region]?.seat !== undefined) ? REGIONS[state.region].seat : 240;
+  const startSeat = state.capitalIndex ?? ((REGIONS[state.region]?.seat !== undefined) ? REGIONS[state.region].seat : 240);
   state.royalLands = state.royalLands || [startSeat];
 
   for (const p of [...state.people, ...state.guests]) {
@@ -205,6 +205,7 @@ function upgradeKingdom() {
       p.liege = state.king;
     }
   }
+  Warfare.ensure();
   repairRelationships();
   pruneProposals();
   attachWaitingVassals();
@@ -297,7 +298,7 @@ function descendants(p, seen) {
 
 function domainPeople(p) {
   const heads = new Set([p.id, ...descendants(p).map(function(x) { return x.id; })]);
-  return alive().filter(function(x) { return heads.has(x.id) || heads.has(x.houseHead); });
+  return alive().filter(function(x) { return heads.has(x.id) || heads.has(x.houseHead) || heads.has(x.liege); });
 }
 
 function processAutonomousLordsRecruitment() {
@@ -312,7 +313,7 @@ function processAutonomousLordsRecruitment() {
     if (lord.social === 2) {
       const preferredSex = lord.sex;
       const pool = adults().filter(function(x) {
-        return x.id !== state.king && x.id !== lord.id && x.social === 0 && !byId(x.unionHead)?.alive && !onMission(x) && !isRoyalFamilyMember(x);
+        return x.id !== state.king && x.id !== lord.id && x.social === 0 && (!x.liege || x.liege === state.king) && !byId(x.unionHead)?.alive && !onMission(x) && !isRoyalFamilyMember(x);
       });
       if (!pool.length) continue;
 
@@ -336,11 +337,11 @@ function processAutonomousLordsRecruitment() {
       }
     } else if (lord.social === 3) {
       let pool = adults().filter(function(x) {
-        return x.id !== state.king && x.id !== lord.id && x.social === 1 && !byId(x.unionHead)?.alive && !onMission(x) && !isRoyalFamilyMember(x);
+        return x.id !== state.king && x.id !== lord.id && x.social === 1 && (!x.liege || x.liege === state.king) && !byId(x.unionHead)?.alive && !onMission(x) && !isRoyalFamilyMember(x);
       });
       if (pool.length < needed) {
         const plebs = adults().filter(function(x) {
-          return x.id !== state.king && x.id !== lord.id && x.social === 0 && !byId(x.unionHead)?.alive && !onMission(x) && !isRoyalFamilyMember(x) && !pool.includes(x);
+          return x.id !== state.king && x.id !== lord.id && x.social === 0 && (!x.liege || x.liege === state.king) && !byId(x.unionHead)?.alive && !onMission(x) && !isRoyalFamilyMember(x) && !pool.includes(x);
         });
         pool = [...pool, ...plebs];
       }
@@ -363,7 +364,7 @@ function attachWaitingVassals() {
   for (let t = 2; t <= 7; t++) {
     const waiting = alive().filter(function(p) { return p.social === t && p.id !== state.king; }).sort(function(a, b) { return a.promotedAt - b.promotedAt; });
     for (const lord of waiting) {
-      const candidates = alive().filter(function(x) { return x.social === t - 1 && (x.liege === state.king || !byId(x.liege)?.alive) && x.id !== lord.id; }).sort(function(a, b) { return a.promotedAt - b.promotedAt; });
+      const candidates = alive().filter(function(x) { return x.social === t - 1 && !x.feudalGrantor && (x.liege === state.king || !byId(x.liege)?.alive) && x.id !== lord.id; }).sort(function(a, b) { return a.promotedAt - b.promotedAt; });
       for (const p of candidates) {
         if (direct(lord).length >= LORD_CAP[t]) break;
         p.liege = lord.id;
@@ -411,7 +412,7 @@ function grantPromotion(p, tiles) {
   if (next === 2) {
     const preferredSex = p.sex;
     const pool = adults().filter(function(x) {
-      return x.id !== state.king && x.id !== p.id && x.social === 0 && !byId(x.unionHead)?.alive && !onMission(x) && !isRoyalFamilyMember(x);
+      return x.id !== state.king && x.id !== p.id && x.social === 0 && (!x.liege || x.liege === state.king) && !byId(x.unionHead)?.alive && !onMission(x) && !isRoyalFamilyMember(x);
     });
 
     pool.sort(function(a, b) {
@@ -442,7 +443,7 @@ function grantPromotion(p, tiles) {
     });
     if (pool.length < 4) {
       const plebs = adults().filter(function(x) {
-        return x.id !== state.king && x.id !== p.id && x.social === 0 && !byId(x.unionHead)?.alive && !onMission(x) && !isRoyalFamilyMember(x) && !pool.includes(x);
+        return x.id !== state.king && x.id !== p.id && x.social === 0 && (!x.liege || x.liege === state.king) && !byId(x.unionHead)?.alive && !onMission(x) && !isRoyalFamilyMember(x) && !pool.includes(x);
       });
       pool = [...pool, ...plebs];
     }
@@ -719,6 +720,8 @@ function politicalCycle() {
 }
 
 function chooseHeir(p) {
+  const designated = manualHeirOf(p);
+  if (designated) return designated;
   const eligible = alive().filter(function(x) {
     return x.parents.includes(p.id) && !byId(x.unionHead)?.alive && x.social < p.social;
   });
@@ -735,7 +738,8 @@ function chooseHeir(p) {
 }
 
 function evaluateHeirReplacement(patriarch, newCandidate) {
-  if (!patriarch || patriarch.social < 3) return;
+  if (!patriarch || patriarch.social < 2 || manualHeirOf(patriarch)) return;
+  patriarch.manualHeir = false;
   const currentHeirId = patriarch.heir;
   const bestHeir = chooseHeir(patriarch);
   if (!bestHeir) return;
@@ -762,17 +766,23 @@ function evaluateHeirReplacement(patriarch, newCandidate) {
 }
 
 function succession(p) {
-  if (p.social < 3) return false;
-  const heir = (byId(p.heir) && adult(byId(p.heir))) ? byId(p.heir) : chooseHeir(p);
+  if (p.social < 2) return false;
+  const nominated = byId(p.heir);
+  const heir = nominated?.alive && adult(nominated) && nominated.social < p.social && bloodDescendant(nominated,p) ? nominated : chooseHeir(p);
   if (!heir) return false;
   const old = p.social;
   heir.social = old;
   heir.liege = p.liege;
   heir.territory = p.territory;
-  heir.tiles = p.tiles ? [...p.tiles] : [];
+  heir.tiles = [...new Set([...(heir.tiles || []), ...(p.tiles || [])])];
+  heir.treasury = heir.treasury || {wood:0,iron:0,food:0,gold:0};
+  for (const resource of ['wood','iron','food','gold']) { heir.treasury[resource] = (heir.treasury[resource] || 0) + (p.treasury?.[resource] || 0); }
+  p.treasury = {wood:0,iron:0,food:0,gold:0};
   heir.order = p.order;
   heir.promotedAt = p.promotedAt;
   heir.houseHead = heir.id;
+  heir.unionHead = null;
+  if (p.feudalGrantor) heir.feudalGrantor = p.feudalGrantor;
   p.social = 0;
   p.retired = true;
   p.liege = null;
@@ -799,7 +809,7 @@ death = function(p, reason) {
   const wasKing = state.king === p.id;
   const tier = p.social;
   const liege = p.liege;
-  if (tier >= 3) succession(p);
+  if (tier >= 2) succession(p);
   oldDeath(p, reason);
   if (wasKing && byId(state.king)) byId(state.king).social = 8;
   for (const v of direct(p)) v.liege = byId(liege)?.alive ? liege : state.king;
@@ -1082,7 +1092,7 @@ function vassalTree(p, seen) {
   if (subHouses.length > 0) {
     card += '<button data-toggle-lord="' + p.id + '" style="padding:2px 8px;font-size:11px;">' + (isCollapsed ? '[+] Subordinados' : '[−] Subordinados') + '</button>';
   }
-  card += '</div></div>' + commandControl(p);
+  card += '</div></div>' + commandControl(p) + (p.social >= 2 ? '<button data-feudal-dialog="' + p.id + '">Administrar domínio</button>' : '');
   
   card += '<div class="couple-row" style="margin-top:8px;">' + personLink(p);
   if (consort) {
@@ -1111,7 +1121,7 @@ function vassalTree(p, seen) {
 function hierarchyView() {
   if (!state) return '';
   const commoners = adults().filter(function(p) { return p.social === 0 && !isRoyalFamilyMember(p); });
-  let body = '<div class="view-tools"><p class="hint">Apenas a Coroa concede novos títulos. Herdeiros recebem títulos existentes.</p><button data-action="kingdom-rules">Regras desta versão</button></div>';
+  let body = '<div class="view-tools"><p class="hint">A Coroa e os nobres podem conceder títulos inferiores e terras próprias a descendentes fora da sucessão principal.</p><button data-action="kingdom-rules">Regras desta versão</button></div>';
   body += '<ul class="vassal-tree">' + vassalTree(byId(state.king)) + '</ul>';
   body += '<section class="panel"><div class="panel-title"><h2>Aldeões sem título</h2></div><div class="panel-body people-grid">';
   if (commoners.length) {
@@ -1140,7 +1150,7 @@ const oldDynasty = dynastyView;
 dynastyView = function() {
   if (!state) return '';
   const women = alive().filter(function(p) { return p.sex === 'F'; });
-  let body = '<div class="subtabs"><button data-view="hierarchy">Hierarquia de vassalos</button><button data-action="kingdom-rules">Regras</button></div>' + proposalsView();
+  let body = '<section class="panel"><div class="panel-body">' + feudalControls(byId(state.king)) + '</div></section><div class="subtabs"><button data-view="hierarchy">Hierarquia de vassalos</button><button data-action="kingdom-rules">Regras</button></div>' + proposalsView();
   body += '<section class="panel section-space"><div class="panel-title"><h2>Nascimentos · diagnóstico por família</h2></div><div class="panel-body">';
   if (women.length) {
     body += women.map(function(p) { return '<div class="kv"><button data-person="' + p.id + '">' + esc(p.name) + ' ' + esc(p.family) + '</button><span>' + breedingStatus(p) + '</span></div>'; }).join('');
@@ -1186,6 +1196,7 @@ familyControls = function(p) {
       if (p.age >= 60 && chooseHeir(p)) html += '<button data-retire="' + p.id + '">Abdicar em favor do herdeiro</button>';
     }
   }
+  html += feudalControls(p);
   html += '<h4>Aparência pessoal</h4><p class="hint">Textura herdada: ' + TEXTURES[p.genes.texture] + '. Penteados não são herdados. A arte adulta utiliza o figurino do rank.</p></section>';
   return html;
 };
@@ -1216,6 +1227,7 @@ function regionPanel(index) {
   });
   const province = TerritoryGeometry.get(index);
   const price = province.price;
+  const enemy = Warfare.owner(index);
   const biome = getTileBiome(index);
   const biomeLabels = { floresta: '🌲 Bosques Densos', lago: '🌊 Oceano Costeiro', mina: '⛰️ Cordilheira Mineral', planicie: '🌾 Planície Fértil' };
   
@@ -1223,8 +1235,12 @@ function regionPanel(index) {
   html += '<div class="kv"><span>Relevo / Bioma</span><b>' + (biomeLabels[biome] || 'Planície') + '</b></div>';
 
   html += '<div class="kv"><span>Área terrestre</span><b>' + province.landArea.toFixed(1) + ' km²</b></div>';
-  if (isRoyal || owner) {
-    html += '<p class="description" style="color:var(--gold);margin-top:10px;"><b>Território Integrado ao Domínio Real.</b></p>';
+  html += '<div class="kv"><span>Posse direta</span><b>' + (owner ? 'Casa ' + esc(owner.family) + ' · ' + title(owner) : isRoyal ? 'Coroa' : enemy ? esc(enemy.name) : 'Terra livre') + '</b></div>';
+  if (enemy) {
+    html += '<p>Território de outro reino · guarnição: ' + Math.ceil(enemy.garrisons[index] || 12) + '.</p>';
+    html += enemy.atWar ? '<button data-war-muster="' + index + '">Mobilizar para conquistar</button>' : '<button data-war-declare="' + enemy.id + '">Declarar guerra</button>';
+  } else if (isRoyal || owner) {
+    html += '<p class="description" style="color:var(--gold);margin-top:10px;"><b>' + (owner ? 'Feudo vassalo · gestão da Casa ' + esc(owner.family) : 'Domínio direto da Coroa') + '</b></p>';
   } else {
     html += '<p class="description" style="margin-top:10px;">Terra livre fora da posse da Coroa.</p>';
     html += '<button class="primary full" data-buy-land="' + index + '" ' + (price === null || state.gold < price ? 'disabled' : '') + '>' + (price === null ? 'Sem terras anexáveis' : 'Anexar ao Reino · ' + price + ' ouro') + '</button>';
@@ -1233,7 +1249,9 @@ function regionPanel(index) {
   if (owner) {
     html += '<div style="margin-top:14px;"><h4>Feudo Concedido:</h4>' + personLink(owner) + commandControl(owner) + '</div>';
   } else if (isRoyal) {
-    html += '<p class="hint">Disponível no Domínio Real para outorga de novos feudos aos vassalos.</p>';
+    html += index === (state.capitalIndex ?? REGIONS[state.region]?.seat ?? 240)
+      ? '<p class="hint">Capital do reino · protegida contra concessões de terras.</p>'
+      : '<p class="hint">Domínio direto da Coroa.</p><button class="full" data-move-capital="' + index + '" ' + (price === null ? 'disabled' : '') + '>Transferir capital para cá</button><p class="hint">Transfere a sede sem custo, mantendo moradores, construções e posses.</p>';
   }
 
   html += '<button data-view="hierarchy" class="full" style="margin-top:12px;">Administrar títulos</button></div>';
@@ -1270,6 +1288,10 @@ document.addEventListener('click', function(e) {
     if (collapsedHouseDetails.has(id)) collapsedHouseDetails.delete(id);
     else collapsedHouseDetails.add(id);
     render();
+    return;
+  }
+  if (b && b.dataset.moveCapital !== undefined) {
+    moveCapital(Number(b.dataset.moveCapital));
     return;
   }
   if (b && b.dataset.buyLand) {

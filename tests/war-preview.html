@@ -1,0 +1,18 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Ensaio isolado da guerra</title>
+<script type="importmap">{"imports":{"three":"../vendor/three/three.module.js"}}</script>
+<style>body{margin:20px;background:#142a3d;color:#eee;font:16px system-ui}button{padding:10px}#stage{height:550px;position:relative}#viewport,#labels{position:absolute;inset:0}#labels{pointer-events:none}.city-label{position:absolute;transform:translate(-50%,-100%);pointer-events:auto}#result{padding:10px}</style>
+<h1>Ensaio isolado da guerra</h1><p>Esta página não lê nem grava a campanha. Usa o motor real de guerra com dois combatentes de teste.</p><button id="day">Avançar um dia</button><button id="recall">Recuar</button><p id="result"></p><div id="stage"><div id="viewport"></div><div id="labels"></div></div>
+<script src="../js/territory/provinces.js"></script>
+<script>
+var state={day:1,king:'king',region:'central',royalLands:[240],people:[{id:'king',name:'Comandante de teste',family:'Teste',social:8,age:24,alive:true,hp:100,tiles:[]},{id:'soldier',name:'Guarda',family:'Teste',social:1,age:24,alive:true,hp:100,tiles:[]}],buildings:{barracks:1},gold:500,food:500};
+function alive(){return state.people.filter(p=>p.alive)}function adult(p){return p.age>=18}function byId(id){return state.people.find(p=>p.id===id)}function domainPeople(){return alive()}function personalLands(p){return p.tiles}function log(){}function power(p){return 45*p.hp/100}function death(p){p.alive=false}function onMission(p){return Warfare.deployed(p.id)}
+</script><script src="../js/war/warfare.js"></script>
+<script type="module">
+import {createViewer} from '../js/map-3d/viewer.mjs';import {describeWorld} from '../js/map-3d/world-data.mjs';
+Warfare.ensure();let target,origin,enemy;
+for(const r of state.warfare.realms){for(const i of r.tiles){const n=TerritoryGeometry.get(i).neighbors.find(n=>TerritoryGeometry.get(n).price!==null&&!Warfare.owner(n));if(n!==undefined){target=i;origin=n;enemy=r;break;}}if(enemy)break;}
+state.royalLands.push(origin);Warfare.declare(enemy.id);const result=Warfare.mobilize('king',target,['king','soldier']);if(!result.ok)throw Error(result.message);
+const viewer=createViewer(document.querySelector('#viewport'),document.querySelector('#labels'),describeWorld(state),index=>viewer.focus(index));viewer.focus(target);
+function update(){viewer.update(describeWorld(state));const army=state.warfare.armies[0];document.querySelector('#result').textContent='Dia '+state.day+' · '+army.status+' · Guarnição '+army.enemy.toFixed(1)+' · '+(state.royalLands.includes(target)?'Província conquistada':'Província rival');}
+document.querySelector('#day').onclick=()=>{state.day++;Warfare.tick();update()};document.querySelector('#recall').onclick=()=>{Warfare.recall(1);update()};update();
+</script></html>

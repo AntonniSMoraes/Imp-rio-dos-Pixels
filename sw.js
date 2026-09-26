@@ -1,6 +1,12 @@
 // Keep the shell manifest synchronized when adding entry points or assets.
-const CACHE_NAME = 'imperio-pixels-v11-campaign-3d';
+const CACHE_NAME = 'imperio-pixels-v14-capital';
 const ASSETS_TO_CACHE = [
+  "./js/war/warfare.js",
+  "./js/war/war-ui.js",
+  "./js/war/war-validation.js",
+  "./js/map-3d/war-tokens.mjs",
+  "./js/map-3d/settlements.mjs",
+  "./js/kingdom/feudal-actions.js",
   "./js/map-3d/campaign-runtime.mjs",
   "./js/territory/territory-selection.js",
   "./styles/campaign-map.css",

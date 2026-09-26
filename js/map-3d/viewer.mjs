@@ -1,3 +1,4 @@
+import { buildWarTokens } from './war-tokens.mjs';
 import * as THREE from 'three';
 import { OrbitControls } from '../../vendor/three/OrbitControls.js';
 import { heightAt, worldPoint, provinces } from './world-data.mjs';
@@ -32,28 +33,31 @@ export function createViewer(container, labels, world, onSelect, onBearing = () 
   camera.position.set(62, 75, 88);
   controls.update();
   const { terrain, water, trees } = buildTerrain(scene);
-  let domains, cities, selected, dirty = true, frame, closed = false;
+  let domains, cities, tokens, selected, dirty = true, frame, closed = false;
   let labelItems = [];
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
   let down;
   function update(nextWorld) {
     world = nextWorld;
-    for (const group of [domains, cities]) if (group) { scene.remove(group); disposeGroup(group); }
+    for (const group of [domains, cities, tokens]) if (group) { scene.remove(group); disposeGroup(group); }
     const visible = domains?.visible ?? true;
     domains = buildDomains(world);
     domains.visible = visible;
     cities = buildCities(world);
-    scene.add(domains, cities);
+    tokens = buildWarTokens(world);
+    scene.add(domains, cities, tokens);
     labels.replaceChildren();
-    labelItems = world.cities.map(city => {
+    labelItems = world.cities.filter(city => city.point).map(city => {
       const button = document.createElement('button');
       button.className = 'city-label';
       button.textContent = (city.capital ? '♜ ' : '⌂ ') + city.name;
-      button.onclick = () => onSelect(city.index);
+      button.onclick = () => onSelect(city.point.province ?? city.index);
       labels.append(button);
-      const p = worldPoint(city.index);
-      return { button, point: new THREE.Vector3(p.x, Math.max(.1, heightAt(p.x, p.z)) + 2.3, p.z) };
+      button.style.borderColor = city.color;
+      button.title = city.point?.relocated ? "Sede em terreno edificável do próprio domínio." : city.name;
+      const p = city.point || worldPoint(city.index);
+      return { button, point: new THREE.Vector3(p.x, (p.base ?? Math.max(.1, heightAt(p.x, p.z))) + (p.kind === 'castle' ? 2.3 : p.kind === 'manor' ? 1.8 : p.kind === 'house' ? .9 : .4), p.z) };
     });
     dirty = true;
   }
@@ -76,7 +80,7 @@ export function createViewer(container, labels, world, onSelect, onBearing = () 
     const rect = renderer.domElement.getBoundingClientRect();
     pointer.set((event.clientX - rect.left) / rect.width * 2 - 1, -(event.clientY - rect.top) / rect.height * 2 + 1);
     raycaster.setFromCamera(pointer, camera);
-    const hit = raycaster.intersectObjects([terrain, water, cities], true)[0];
+    const hit = raycaster.intersectObjects([terrain, water, cities, tokens], true)[0];
     if (!hit) return;
     let object = hit.object;
     while (object && object.userData.tile === undefined) object = object.parent;
@@ -118,7 +122,7 @@ export function createViewer(container, labels, world, onSelect, onBearing = () 
       scene.add(selected); dirty = true;
     },
     focus(index) {
-      const p = worldPoint(index), height = Math.max(0, heightAt(p.x, p.z));
+      const p = world.cities.find(city=>city.index===index)?.point || worldPoint(index), height = Math.max(0, heightAt(p.x, p.z));
       controls.target.set(p.x, height, p.z);
       camera.position.set(p.x + 14, height + 22, p.z + 24);
       controls.update(); dirty = true;

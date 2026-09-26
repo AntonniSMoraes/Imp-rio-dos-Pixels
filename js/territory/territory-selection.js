@@ -26,7 +26,7 @@ function selectTerritory(index) {
         toast('Casa ' + clickedNoble.family + ' selecionada. Clique em um bloco real livre vizinho para transferir.');
       } else if (selectedBorderNoble) {
         const noble = byId(selectedBorderNoble);
-        if (index === (REGIONS[state.region]?.seat ?? 240)) return toast('A Capital Real está protegida.');
+        if (index === (state.capitalIndex ?? REGIONS[state.region]?.seat ?? 240)) return toast('A Capital Real está protegida.');
         if (noble && !(noble.tiles || []).includes(index) && (state.royalLands || []).includes(index)) {
           if (state.gold < 15) return toast('Ouro insuficiente para alterar fronteiras (Custo: 15 ouro).');
           const oldTiles = [...(noble.tiles || [])];

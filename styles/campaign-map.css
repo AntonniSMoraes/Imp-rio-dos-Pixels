@@ -14,3 +14,8 @@
 @media(max-width:700px){#campaign-map-slot,.campaign-atlas{min-height:480px;height:60vh}.campaign-map-tools{bottom:58px}.campaign-map-help{max-width:90%}}
 
 .realm-toolbar {flex-wrap:wrap;}
+
+.campaign-domain-legend{position:absolute;right:10px;top:10px;display:flex;flex-wrap:wrap;gap:10px;padding:8px;background:#142a3de8;color:#eee;font-size:11px;max-width:48%;pointer-events:none}
+@media(max-width:700px){.campaign-domain-legend{top:62px;left:10px;max-width:90%;width:fit-content}}
+
+.campaign-domain-legend{max-height:100px;overflow:auto;pointer-events:auto}

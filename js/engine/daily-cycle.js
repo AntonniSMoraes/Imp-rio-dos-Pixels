@@ -9,6 +9,9 @@ function advance() {
   birthCycle();
   politicalCycle();
   governmentCycle();
+  const foodBeforeWar = state.food;
+  Warfare.tick();
+  if (state.economyBalance) state.economyBalance.food -= foodBeforeWar - state.food;
   save();
   render();
   refreshPersonModal();

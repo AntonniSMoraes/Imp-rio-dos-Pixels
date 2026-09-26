@@ -51,8 +51,8 @@ test('older saves normalize underage workers without rewriting ages', () => {
 
 test('daily cycle completes all systems before one save and one render', () => {
   const calls = [];
-  const functions = Object.fromEntries(['upgradeKingdom', 'advanceVillageDay', 'birthCycle', 'politicalCycle', 'governmentCycle', 'save', 'render', 'refreshPersonModal'].map(name => [name, () => calls.push(name)]));
-  const ctx = engine(['js/engine/daily-cycle.js'], { ...functions, state: {}, alive: () => [{}], speed: 1 });
+  const functions = Object.fromEntries(['upgradeKingdom', 'advanceVillageDay', 'birthCycle', 'politicalCycle', 'governmentCycle', 'warTick', 'save', 'render', 'refreshPersonModal'].map(name => [name, () => calls.push(name)]));
+  const ctx = engine(['js/engine/daily-cycle.js'], { ...functions, Warfare: {tick:functions.warTick}, state: {}, alive: () => [{}], speed: 1 });
   ctx.advance();
   assert.deepEqual(calls, Object.keys(functions));
   calls.length = 0;

@@ -77,7 +77,7 @@ function advanceVillageDay() {
   state.foodRate = tributes.food;
   state.wood = Math.max(0, state.wood - state.buildings.fire * 2);
   state.food = Math.max(0, state.food - royalPopulation * 0.45);
-  state.gold += adults().length * 0.35;
+
   state.economyBalance = Object.fromEntries(Object.keys(beforeEconomy).map(key => [key, state[key] - beforeEconomy[key]]));
 
   if (state.day % 12 === 0) {

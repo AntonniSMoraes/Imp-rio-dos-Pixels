@@ -1,5 +1,37 @@
 'use strict';
 
+function capitalMoveError(index) {
+  if (!state || !Number.isInteger(index) || !TerritoryGeometry.get(index)) return 'Território inválido.';
+  if (index === (state.capitalIndex ?? REGIONS[state.region]?.seat ?? 240)) return 'Esta já é a capital.';
+  if (!(state.royalLands || []).includes(index) || (typeof Warfare !== 'undefined' && Warfare.owner(index))) return 'Escolha uma terra da Coroa.';
+  if (alive().some(person => person.id !== state.king && person.social >= 2 && (person.tiles || [person.territory]).includes(index))) return 'A capital precisa estar em uma terra sob posse direta da Coroa.';
+  if (TerritoryGeometry.get(index).price === null) return 'Este território não possui área terrestre suficiente para sediar a capital.';
+  return null;
+}
+
+async function capitalSite(index) {
+  const { settlementSite } = await import('../map-3d/settlements.mjs');
+  return settlementSite([index]);
+}
+
+async function moveCapital(index) {
+  const error = capitalMoveError(index);
+  if (error) return toast(error);
+  const campaign = state;
+  let site;
+  try { site = await capitalSite(index); }
+  catch { return toast('Não foi possível verificar o terreno. Tente novamente.'); }
+  if (state !== campaign) return;
+  const changed = capitalMoveError(index);
+  if (changed) return toast(changed);
+  if (!site) return toast('Não há espaço seguro em terra firme para instalar a sede nesta vila.');
+  state.capitalIndex = index;
+  log('A capital do reino foi transferida para a Vila ' + (index + 1) + '.');
+  save();
+  render();
+  toast('Capital transferida!');
+}
+
 function getTileCoords(index) {
   const coordinates = morton(index);
   return { x: coordinates.x, y: coordinates.y };
@@ -64,7 +96,7 @@ function getClusterFromTile(startTile, size, currentPersonTiles = []) {
       });
     }
   });
-  const seat = REGIONS[state.region]?.seat ?? 240;
+  const seat = state.capitalIndex ?? REGIONS[state.region]?.seat ?? 240;
   if ((!royalLands.has(startTile) && !currentLands.has(startTile)) || occupied.has(startTile) || startTile === seat) return null;
   if (size === 1) return [startTile];
 
@@ -89,7 +121,7 @@ function getClusterFromTile(startTile, size, currentPersonTiles = []) {
 function getAvailableConnectedClusters(size, targetPerson = null) {
   if (!state) return [];
   const royalLands = new Set(state.royalLands || []);
-  const seat = REGIONS[state.region]?.seat ?? 240;
+  const seat = state.capitalIndex ?? REGIONS[state.region]?.seat ?? 240;
   const currentLands = targetPerson
     ? (targetPerson.tiles || [targetPerson.territory]).filter((tile) => tile !== null && tile !== undefined)
     : [];
@@ -119,6 +151,7 @@ function getAvailableConnectedClusters(size, targetPerson = null) {
 
 function buyLand(index) {
   if (!state) return;
+  if (typeof Warfare !== 'undefined' && Warfare.owner(index)) return toast('Esta terra pertence a outro reino. É necessário conquistá-la.');
   const province = TerritoryGeometry.get(index);
   if (!province || province.price === null) return toast('Este território não possui área terrestre suficiente para anexação.');
   state.royalLands = state.royalLands || [];
