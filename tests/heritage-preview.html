@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="pt-BR">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Herança visual — galeria de verificação</title>
+<style>
+body{margin:0;padding:28px;background:#11232d;color:#e7e0ce;font:16px system-ui}h1{font:30px Georgia}p{max-width:850px;color:#b4c9ce}main{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:18px}article{padding:16px;background:#203b4a;border:1px solid #54717c;border-radius:8px}h2{font-size:16px;color:#e5c782}small{display:block;line-height:1.6}.full-character{width:144px;height:216px;object-fit:contain}.portrait{width:64px;height:64px;border-radius:50%;vertical-align:top} .figures{min-height:216px}a{color:#e5c782}
+</style>
+<h1>Herança visual</h1><p>Galeria isolada: não lê nem altera campanhas. Mesmas cores herdadas nas variantes de lobo. A anatomia muda conforme a ancestralidade; altos-elfos exibem sua cor própria.</p>
+<main id="gallery"></main>
+<script src="../js/config/config.js"></script><script src="../js/config/races.js"></script><script src="../js/engine/race-genetics.js"></script><script src="../js/core/utils.js"></script><script src="../js/config/race-assets.js"></script>
+<script src="../js/art/art-state.js"></script><script src="../js/art/art-palette.js"></script><script src="../js/art/atlas-preparation.js"></script><script src="../js/art/rank-atlas.js"></script><script src="../js/art/legacy-composition.js"></script><script src="../js/art/art.js"></script>
+<script>
+const specimens=[];
+for(const sex of ['M','F'])for(const share of [.125,.25,.5,.75,1]) specimens.push({name:(sex==='M'?'Homem':'Mulher')+' · '+share*100+'% lobo',race:'half-wolf',ancestry:{human:1-share,wolf:share},sex});
+specimens.push({name:'Elfo puro',race:'elf',ancestry:{elf:1},sex:'M',pure:true},{name:'Alta-Elfa',race:'elf',ancestry:{elf:1},sex:'F',pure:true,high:true},{name:'Elfa Negra',race:'darkElf',ancestry:{darkElf:1},sex:'F',pure:true},{name:'Lâmia / Harpia',race:'lamia',ancestry:{lamia:.75,harpy:.25},sex:'F'});
+for(const p of specimens){Object.assign(p,{genes:{hair:2,skin:1,eyes:0,style:0,texture:0,freckles:false},attrs:{força:20,vigor:20,magia:20,agilidade:20},level:5,age:25,rank:0,social:0});if(p.pure)expressBirthBiology(p,[],()=>p.high?0:1);}
+function refreshPersonModal(){}
+function render(){document.getElementById('gallery').innerHTML=specimens.map(p=>'<article><h2>'+esc(p.name)+'</h2><div class="figures">'+fullPortrait(p)+portrait(p)+'</div><small>Modelo: '+esc(RACES[characterArtProfile(p).race].name)+'</small><small>'+esc(physicalExpression(p).features.join(' · '))+'</small></article>').join('');}
+// Resolve artwork relative to the project root, without changing script URLs or storage.
+const base=document.createElement('base');base.href='../';document.head.append(base);
+loadAnimeArt();render();
+</script>
+</html>

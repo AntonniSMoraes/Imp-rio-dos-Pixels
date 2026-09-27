@@ -79,7 +79,7 @@ function prepareAnimeTile(row, col, atlas = animeAtlas, atlasKey = "human") {
           hue <= 43 &&
           r > gg * 1.055 &&
           gg > b * 1.06 &&
-          r > 120
+          r > (atlasKey === "darkElf" ? 65 : 120)
         ) {
           skin.push(i);
           minX = Math.min(minX, x);

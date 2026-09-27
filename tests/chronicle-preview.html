@@ -52,6 +52,7 @@
         <script src="js/economy/annual-economy.js"></script>
         <script src="js/economy/state-economy.js"></script>
         <script src="js/war/war-validation.js"></script>
+        <script src="js/kingdom/family-chronicle.js"></script>
         <script src="js/core/save-validation.js"></script>
         <script src="js/recruitment/recruitment-system.js"></script>
         <script src="js/combat/battle-system.js"></script>
@@ -89,12 +90,13 @@
         <script src="js/engine/daily-cycle.js"></script>
 
     <script>
-state=initial('central','Teste','Ensaio');state.gold=3000;state.food=3000;state.buildings.barracks=1;state.buildings.home=5;upgradeKingdom();speed=0;
-const visitor=WorldSocieties.create('kobold',null,240);visitor.name='Visitante de teste';
-const prisoner=WorldSocieties.all().find(p=>p.realm);prisoner.capturedBy='crown';prisoner.persuasion=85;
-const controls=document.createElement('div');controls.style='position:fixed;top:0;left:0;z-index:500;background:#263b49;padding:6px';controls.innerHTML='<button id="test-day">Simular 24 dias</button><button id="test-validate">Validar campanha</button><span id="test-status">Ensaio isolado</span>';document.body.append(controls);
-document.querySelector('#test-day').onclick=()=>{try{for(let i=0;i<24;i++)advance();document.querySelector('#test-status').textContent='24 dias simulados';}catch(e){document.querySelector('#test-status').textContent='Erro: '+e.message;}};
-document.querySelector('#test-validate').onclick=()=>{try{validateSave(JSON.parse(JSON.stringify(state)));document.querySelector('#test-status').textContent='Campanha validada';}catch(e){document.querySelector('#test-status').textContent='Erro: '+e.message;throw e;}};
-isMandatoryModal=false;document.querySelector('#modal').close();render();
+state=initial('central','Aurora','Valen');upgradeKingdom();speed=0;
+const founder=byId(state.king);founder.age=30;founder.level=5;
+const mate=makePerson({age:25,sex:founder.sex==='M'?'F':'M'});mate.level=5;state.people.push(mate);ensurePerson(mate);unite(founder,mate);
+const mother=founder.sex==='F'?founder:mate,father=founder.sex==='M'?founder:mate;
+mother.reproduction={version:1,pregnancy:{fatherId:father.id,babies:1,recoveryDays:24},nextAttemptDay:1,recoveryUntil:0};deliverPregnancy(mother);
+const child=state.people.at(-1);child.age=25;child.level=5;founder.heir=child.id;succession(founder);death(founder,'de velhice');
+const target=state.warfare.realms[0].tiles[0];Warfare.conquer(target,'crown',child);Warfare.conquer(target,state.warfare.realms[0].id);
+validateSave(JSON.parse(JSON.stringify(state)));isMandatoryModal=false;document.querySelector('#modal').close();view='dynasty';render();
 </script></body>
 </html>

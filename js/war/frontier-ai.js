@@ -20,7 +20,8 @@ const FrontierAI = (() => {
       if(!raid.defenders||raid.defenderRealm!==defenderRealm){raid.defenders=defenders(raid.target).map(p=>p.id);raid.defenderRealm=defenderRealm;}
       const defense=raid.defenders.map(WorldSocieties.by).filter(p=>p?.alive&&!p.capturedBy),winner=WarCombat.round(attackers,defense);raid.round++;
       if(winner==='left'){
-        WarCombat.capture(defense,realm.id);Warfare.conquer(raid.target,realm.id);
+        raid.status='done';
+        if(typeof LocalRecruitment==='undefined')WarCombat.capture(defense,realm.id);else WarCombat.capture(defense.filter(p=>state.people.includes(p)),realm.id);Warfare.conquer(raid.target,realm.id);
         for(const p of attackers.filter(p=>p.alive&&!p.capturedBy))p.location=raid.target;
         raid.status='done';Warfare.report(realm.name+' conquistou a Vila '+(raid.target+1)+'.');
       }else if(winner==='right'){
@@ -35,6 +36,7 @@ const FrontierAI = (() => {
       const choices=[];
       for(const origin of realm.tiles){const men=WorldSocieties.guards(realm.id,origin);if(men.length<2)continue;
         for(const target of TerritoryGeometry.get(origin).neighbors){
+          if(typeof CommunityLife!=='undefined'&&CommunityLife.list().some(c=>c.claim&&c.tile===target))continue;
           if(TerritoryGeometry.get(target).price===null||!WorldSocieties.allowed(realm.race,target)||realm.tiles.includes(target)||w.raids.some(r=>r.target===target))continue;
           const enemy=Warfare.owner(target),player=Warfare.owned().has(target);
           if(player&&!realm.atWar)continue;

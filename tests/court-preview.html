@@ -52,6 +52,7 @@
         <script src="js/economy/annual-economy.js"></script>
         <script src="js/economy/state-economy.js"></script>
         <script src="js/war/war-validation.js"></script>
+        <script src="js/kingdom/family-chronicle.js"></script>
         <script src="js/core/save-validation.js"></script>
         <script src="js/recruitment/recruitment-system.js"></script>
         <script src="js/combat/battle-system.js"></script>
@@ -74,8 +75,8 @@
         <script src="js/war/dragons.js"></script>
         <script src="js/war/combatants.js"></script>
         <script src="js/war/world-societies.js"></script>
-<script src="js/war/community-life.js"></script>
-<script src="js/war/local-recruitment.js"></script>
+        <script src="js/war/community-life.js"></script>
+        <script src="js/war/local-recruitment.js"></script>
         <script src="js/war/frontier-ai.js"></script>
         <script src="js/war/world-ui.js"></script>
         <script src="js/war/warfare.js"></script>
@@ -89,12 +90,13 @@
         <script src="js/engine/daily-cycle.js"></script>
 
     <script>
-state=initial('central','Teste','Ensaio');state.gold=3000;state.food=3000;state.buildings.barracks=1;state.buildings.home=5;upgradeKingdom();speed=0;
-const visitor=WorldSocieties.create('kobold',null,240);visitor.name='Visitante de teste';
-const prisoner=WorldSocieties.all().find(p=>p.realm);prisoner.capturedBy='crown';prisoner.persuasion=85;
-const controls=document.createElement('div');controls.style='position:fixed;top:0;left:0;z-index:500;background:#263b49;padding:6px';controls.innerHTML='<button id="test-day">Simular 24 dias</button><button id="test-validate">Validar campanha</button><span id="test-status">Ensaio isolado</span>';document.body.append(controls);
-document.querySelector('#test-day').onclick=()=>{try{for(let i=0;i<24;i++)advance();document.querySelector('#test-status').textContent='24 dias simulados';}catch(e){document.querySelector('#test-status').textContent='Erro: '+e.message;}};
-document.querySelector('#test-validate').onclick=()=>{try{validateSave(JSON.parse(JSON.stringify(state)));document.querySelector('#test-status').textContent='Campanha validada';}catch(e){document.querySelector('#test-status').textContent='Erro: '+e.message;throw e;}};
-isMandatoryModal=false;document.querySelector('#modal').close();render();
-</script></body>
-</html>
+state=initial('central','Aurora','Valen');state.gold=500;state.food=500;state.buildings.home=10;upgradeKingdom();speed=0;
+const monarch=byId(state.king), suitor=makePerson({age:25,sex:monarch.sex==='M'?'F':'M'});suitor.name='Liora';state.people.push(suitor);ensurePerson(suitor);
+const negotiation=MarriageCouncil.refuse(monarch,suitor,[suitor]);negotiation.rejected[0].demand={type:'gold',amount:60};
+const lord=makePerson({age:30});lord.name='Darian';state.people.push(lord);ensurePerson(lord);lord.social=2;lord.houseHead=lord.id;lord.liege=state.king;lord.tiles=[state.royalLands.pop()];lord.treasury={food:0,wood:20,iron:20,gold:20};VassalAid.request(lord);
+isMandatoryModal=false;document.querySelector('#modal').close();view='dynasty';render();
+const controls=document.createElement('div');controls.style='position:fixed;top:0;left:0;z-index:500;background:#263b49;padding:6px';controls.innerHTML='<button id="demo-insist">Insistir na proposta</button><button id="demo-validate">Validar save</button><span id="demo-status">Ensaio isolado</span>';document.body.append(controls);
+document.querySelector('#demo-insist').onclick=()=>{MarriageCouncil.propose(monarch,suitor);render();};
+document.querySelector('#demo-validate').onclick=()=>{validateSave(JSON.parse(JSON.stringify(state)));document.querySelector('#demo-status').textContent='Save válido · ouro '+state.gold+' · alimentos '+state.food+' · união '+partners(monarch).length+' · auxílio '+state.aidRequests[0].status;};
+validateSave(JSON.parse(JSON.stringify(state)));
+</script></body></html>

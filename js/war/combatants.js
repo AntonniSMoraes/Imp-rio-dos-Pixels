@@ -26,7 +26,7 @@ const WarCombat = (() => {
       if(target.hp===0){
         // A small share survive the lethal blow, unconscious, until the outcome.
         if(Math.random()<.25)target.hp=1;
-        else if(state.people.includes(target))death(target,'em combate territorial');
+        else if(state.people.includes(target)&&!target.away)death(target,'em combate territorial');
         else {target.alive=false;target.deathDay=state.day;}
       }
     }

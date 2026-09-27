@@ -45,7 +45,7 @@ export function readCampaign(storage) {
   return save;
 }
 export function describeWorld(save) {
-  const people = save?.people.filter(person => person.alive) || [];
+  const people = save?.people.filter(person => person.alive && !person.away) || [];
   const king = people.find(person => person.id === save?.king);
   const seat = save?.capitalIndex ?? { north: 0, central: 240, south: 480 }[save?.region] ?? 240;
   const royal = new Set((save?.royalLands || [seat]).filter(index => Number.isInteger(index) && index >= 0 && index < 512));
@@ -74,18 +74,21 @@ export function describeWorld(save) {
     city.color = city.capital ? '#dbb56e' : owners[city.index].color;
   }
   const armies = (save?.warfare?.armies || []).filter(a=>a.status!=='done').map(a=>({...a,count:a.men.filter(id=>people.some(p=>p.id===id)).length}));
-  const external=save?.warfare?.people||[];
+  const external=[...(save?.warfare?.people||[]),...(save?.people||[]).filter(p=>p.away)];
   const direct=i=>owners[i]?.id==='crown';
-  const known=p=>p.capturedBy==='crown'||(!p.realm?direct(p.location):(save.warfare.realms.find(r=>r.id===p.realm)?.ally||save.warfare.intel?.[p.realm]?.until>=save.day));
+  const claims=(save?.warfare?.communities||[]).filter(c=>c.claim);
+  const reserved=id=>claims.some(c=>[...c.claim.men,...c.claim.defenders].includes(id))||(save?.warfare?.raids||[]).some(r=>r.status!=='done'&&[...r.men,...(r.defenders||[])].includes(id));
+  const local=p=>owners[p.location]&&['crown',...lords.map(l=>l.id)].includes(owners[p.location].id)&&!reserved(p.id)&&(!p.realm||p.capturedBy==='crown');
+  const known=p=>local(p)||p.capturedBy==='crown'||(!p.realm?direct(p.location):(save.warfare.realms.find(r=>r.id===p.realm)?.ally||save.warfare.intel?.[p.realm]?.until>=save.day));
   const deployments=[...(save?.warfare?.armies||[]).filter(a=>a.status!=='done'),...(save?.warfare?.raids||[]).filter(a=>a.status!=='done').map(a=>({...a,path:[a.origin,a.target],step:a.status==='march'?0:1}))];
   const position=p=>{const army=deployments.find(a=>a.men.includes(p.id));return army?army.path[army.step]:p.location;};
-  const worldPeople=external.filter(p=>p.alive&&!p.capturedBy).map(p=>({id:p.id,tile:position(p),color:p.realm?'#ed997b':'#c6d8d4',known:known(p),inspectable:!p.realm&&direct(p.location)}));
+  const worldPeople=external.filter(p=>p.alive&&(!p.capturedBy||p.capturedBy==='crown')).map(p=>({id:p.id,tile:position(p),color:p.capturedBy?'#b897d6':claims.some(c=>c.claim.men.includes(p.id))?'#ed997b':p.realm?'#ed997b':p.communityId?'#70c9ae':'#c6d8d4',known:known(p),inspectable:p.capturedBy==='crown'||local(p)}));
   for(const p of people.filter(p=>!p.capturedBy)){
     const lord=people.find(x=>x.id===(p.liege||p.houseHead));
     const tile=position(p)??p.tiles?.[0]??lord?.tiles?.[0]??seat;
     if(owners[tile]?.id!=='free')worldPeople.push({id:p.id,tile,color:'#f8dc91',known:true});
   }
-  const habitats=(save?.warfare?.habitats||[]).map(h=>({...h,point:settlementSite([h.tile])}));
+  const habitats=[...(save?.warfare?.habitats||[]),...(save?.warfare?.communities||[]).filter(c=>['settled','claiming'].includes(c.status)).map(c=>({tile:c.tile,race:c.race,name:c.name,claiming:!!c.claim}))].map(h=>({...h,point:settlementSite([h.tile])}));
   for(const raid of save?.warfare?.raids||[])if(raid.status!=='done')armies.push({...raid,path:[raid.origin,raid.target],step:raid.status==='march'?0:1,count:raid.men.filter(id=>external.some(p=>p.id===id&&p.alive&&!p.capturedBy)).length,enemy:0,hostile:true});
   return { owners, cities, armies, people:worldPeople, habitats, dragons:(save?.dragons||[]).map(d=>({...d,point:settlementSite([d.tile])})), seat, king, day: save?.day, demo: !save };
 }

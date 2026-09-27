@@ -17,15 +17,17 @@ test('both sides can capture surviving defeated people and captured citizens are
  for(const k in king.attrs)king.attrs[k]=1000;assert.equal(c.Combat.round([king],[p]),'left');assert.equal(p.alive,true);c.Combat.capture([p],'crown');assert.equal(p.capturedBy,'crown');
  c.Combat.capture([king],'realm-0');assert.equal(c.onMission(king),true);const gold=c.state.gold;assert.equal(c.Societies.ransom(king.id),true);assert.equal(king.capturedBy,null);assert.equal(c.state.gold,gold-30);
 });
-test('persuasion is daily, costs resources, respects capacity and transfers the actual prisoner',()=>{
+test('offers respect capacity, use resources once, persist cooldown and transfer the actual prisoner',()=>{
  const c=setupWorld(),p=c.Societies.all()[0],id=p.id;p.capturedBy='crown';c.capacity=()=>2;
- assert.equal(c.Societies.persuade(id),true);const before=c.state.gold;assert.equal(c.Societies.persuade(id),false);assert.equal(c.state.gold,before);
- for(let i=0;i<30;i++){c.state.day++;c.Societies.persuade(id);}assert.equal(p.persuasion,100);assert.ok(c.Societies.all().includes(p));
- c.capacity=()=>20;c.state.day++;assert.equal(c.Societies.persuade(id),true);assert.ok(c.state.people.includes(p));assert.ok(!c.Societies.all().includes(p));assert.equal(p.capturedBy,null);assert.doesNotThrow(()=>c.validateWarfare(c.state));
+ const gold=c.state.gold;assert.equal(c.Societies.persuade(id),false);assert.equal(c.state.gold,gold);
+ c.capacity=()=>20;c.Math.random=()=>.99;assert.equal(c.Societies.persuade(id),true);assert.equal(c.state.gold,gold-2);assert.equal(p.lastOfferResult,'refused');
+ assert.equal(c.Societies.persuade(id),false);c.state.day+=4;c.Math.random=()=>0;
+ assert.equal(c.Societies.persuade(id),true);assert.ok(c.state.people.includes(p));assert.ok(!c.Societies.all().includes(p));assert.equal(p.capturedBy,null);assert.doesNotThrow(()=>c.validateWarfare(c.state));
 });
-test('travelers reveal only on direct crown land; enemy cards require allied access or completed espionage',()=>{
+
+test('travelers reveal on crown and vassal land; active foreign cards require allied access or espionage',()=>{
  const c=setupWorld(),p=c.Societies.create('kobold',null,240);assert.equal(c.Societies.visible(p),true);
- c.state.people.push({...c.makePerson(),social:2,tiles:[240]});assert.equal(c.Societies.visible(p),false);assert.equal(c.Societies.recruit(p.id),false);
+ c.state.people.push({...c.makePerson(),social:2,tiles:[240]});assert.equal(c.Societies.visible(p),true);assert.equal(c.Societies.recruit(p.id),true);
  const enemy=c.Societies.all().find(p=>p.realm);assert.equal(c.Societies.visible(enemy),false);assert.equal(c.Societies.spy(enemy.realm),true);assert.equal(c.Societies.visible(enemy),false);c.state.day+=3;c.Societies.tick();assert.equal(c.Societies.visible(enemy),true);c.state.day+=49;assert.equal(c.Societies.visible(enemy),false);
 });
 test('claiming a habitat permits recruitment without creating a duplicate',()=>{
@@ -66,4 +68,13 @@ test('automatic defense reserves people and prevents simultaneous deployment acr
  const c=setupWorld(),r1=c.state.warfare.realms[0],r2=c.state.warfare.realms[1];const backup=geometry.all().provinces.find(p=>p.price!==null&&!c.Warfare.owner(p.index)&&p.index!==240).index;c.state.royalLands.push(backup);
  c.state.warfare.raids=[r1,r2].map((r,i)=>({id:'test-'+i,realm:r.id,origin:r.capital,target:i?backup:240,status:'battle',round:0,men:c.Societies.guards(r.id,r.capital).slice(0,2).map(p=>p.id)}));r1.atWar=r2.atWar=true;
  c.Combat.round=()=>null;c.AI.tick();assert.equal(c.state.warfare.raids[0].defenders.length,2);assert.equal(c.state.warfare.raids[1].defenders.length,0);assert.equal(c.Warfare.deployed('king'),true);assert.equal(c.Warfare.mobilize('king',r1.capital,['king','soldier']).ok,false);assert.doesNotThrow(()=>c.validateWarfare(c.state));
+});
+
+test('inspection magnifier covers local travelers and crown prisoners',()=>{
+ const c=setupWorld(),p=c.Societies.create('kobold',null,240);
+ const marker=()=>describeWorld(c.state).people.find(x=>x.id===p.id);
+ assert.equal(marker().inspectable,true);
+ c.state.people.push({...c.makePerson(),social:2,tiles:[240]});
+ assert.equal(marker().inspectable,true);
+ p.capturedBy='crown';assert.equal(marker().inspectable,true);
 });

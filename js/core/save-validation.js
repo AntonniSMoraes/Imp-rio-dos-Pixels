@@ -1,6 +1,8 @@
 "use strict";
 
 function validateSave(save) {
+  if(typeof validateCourt==="function" && save && Array.isArray(save.people))validateCourt(save);
+  if (typeof FamilyChronicle !== "undefined" && save) FamilyChronicle.validate(save);
   if (
     !save ||
     save.version !== 2 ||
@@ -66,6 +68,7 @@ function validateSave(save) {
       Object.keys(person.attrs).length !== 4
     ) throw Error("person");
 
+    if(person.paperDoll!==undefined&&typeof CampaignAppearance!=='undefined')CampaignAppearance.validate(person.paperDoll);
     for (const [key, size] of [
       ["hair", HAIR.length],
       ["style", STYLES.length],
@@ -99,10 +102,13 @@ function validateSave(save) {
     if (person.feudalGrantor !== undefined && (typeof person.feudalGrantor !== 'string' || !/^[a-zA-Z0-9-]+$/.test(person.feudalGrantor))) throw Error('feudalGrantor');
     for(const key of ['treasury','annualOpening'])if(person[key]!==undefined && !validAccount(person[key]))throw Error(key);
     if(person.knighthoodTraining!==undefined && (!Number.isInteger(person.knighthoodTraining)||person.knighthoodTraining<0||person.knighthoodTraining>47))throw Error('knighthood training');
+    if(person.exclusivePartnerId!==undefined && (typeof person.exclusivePartnerId!=='string'||person.exclusivePartnerId===person.id||!save.people.some(p=>p.id===person.exclusivePartnerId)))throw Error('exclusive partner');
     const squad=person.conscripts;
     if(squad!==undefined && (!squad || !Number.isInteger(squad.count)||squad.count<0||squad.count>10||!Number.isFinite(squad.wounds)||squad.wounds<0||squad.wounds>=100||!Number.isInteger(squad.losses)||squad.losses<0||!Number.isInteger(squad.merit)||squad.merit<0||typeof squad.recommended!=='boolean'))throw Error('conscripts');
     const request=person.promotionRequest;
     if(request!==undefined && (!request || !Number.isInteger(request.tier)||request.tier<1||request.tier>7||!Array.isArray(request.tiles)||request.tiles.length>512||request.tiles.some(i=>!Number.isInteger(i)||i<0||i>511)||!validAccount(request.fee)||!Number.isInteger(request.day)||request.day<0))throw Error('promotion request');
+    if(person.inheritance !== undefined && (!validInheritanceRecord(person.inheritance) || !person.inheritance.parents.every(p => person.parents.includes(p.id))))throw Error('inheritance');
+    if(!validBiology(person))throw Error('biology');
     normalizeLifeStage(person);
     ensureRaceData(person);
     validateReproduction(person, save);

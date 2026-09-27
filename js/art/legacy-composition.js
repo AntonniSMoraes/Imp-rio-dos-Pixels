@@ -1,6 +1,7 @@
 function composedAnime(p) {
   const row = p.level < 5 ? (p.sex === "M" ? 2 : 3) : p.sex === "M" ? 0 : 1;
-  const race = p.race || "human";
+  const requestedRace = characterArtProfile(p).race;
+  const race = raceAtlases.has(requestedRace) ? requestedRace : "human";
   const atlas = raceAtlases.get(race) || animeAtlas;
   const tile =
     p.level >= 5 && rankAtlas && race === "human"
@@ -33,13 +34,7 @@ function composedAnime(p) {
       color = blend(color, [174, 177, 173], 0.6);
     for (let k = 0; k < 3; k++) d[i + k] = color[k];
   }
-  const skinColor = rgb(SKIN[p.genes.skin][2]);
-  for (const i of tile.skin)
-    for (let k = 0; k < 3; k++)
-      d[i + k] = Math.min(
-        255,
-        Math.round((tile.data[i + k] * skinColor[k]) / [247, 209, 177][k]),
-      );
+  recolorComplexion(tile, d, SKIN[p.genes.skin]);
   const eye = rgb(EYES[p.genes.eyes][1]);
   for (const i of tile.eyes) {
     const lightness = Math.max(
