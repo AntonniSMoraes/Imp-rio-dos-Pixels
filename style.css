@@ -1768,3 +1768,9 @@ dialog::backdrop {
 .peerage-resource { display: grid; grid-template-columns: minmax(0, 1fr) minmax(90px, 160px); gap: 16px; align-items: center; }
 .peerage-resource input { width: 100%; min-width: 0; box-sizing: border-box; padding: 10px; color: var(--text); background: var(--bg); border: 1px solid var(--line); }
 .peerage-actions { display: flex; flex-wrap: wrap; gap: 10px; padding-top: 4px; }
+
+.chronicle-people { display:block; margin-top:8px; }
+.chronicle-people button { font-size:12px; padding:4px 8px; }
+
+.family-chronicles p { display:block; }
+.family-chronicles time { display:block; margin-bottom:6px; }

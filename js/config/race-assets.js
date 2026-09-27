@@ -21,3 +21,10 @@ const RACE_ATLAS_ASSETS = {
 function getRaceAtlasAsset(race) {
   return RACE_ATLAS_ASSETS[race] || RACE_ATLAS_ASSETS.human;
 }
+
+// Shared by body, portrait and UI. Does not mutate genes or campaign data.
+function characterArtProfile(person) {
+  const physical=physicalExpression(person);
+  const race=RACE_ATLAS_ASSETS[physical.atlasRace] ? physical.atlasRace : 'human';
+  return { race, physical, asset:getRaceAtlasAsset(race) };
+}

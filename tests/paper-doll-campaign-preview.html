@@ -19,7 +19,7 @@
         <link rel="apple-touch-icon" href="assets/icon-192.png">
 
         
-    </head>
+    <style>body{overflow:auto}#app{display:block;height:auto}#app main{height:auto;overflow:visible;display:block}#app .full-character{display:block;width:192px;height:320px;object-fit:contain}#app .portrait{width:80px;height:80px}</style></head>
     <body>
         <aside id="file-mode-notice" hidden style="padding:12px 20px;background:#332b19;color:#f3dfaa;border-bottom:1px solid #96783f">
             Você abriu o arquivo diretamente. O navegador pode bloquear os retratos.
@@ -52,6 +52,7 @@
         <script src="js/economy/annual-economy.js"></script>
         <script src="js/economy/state-economy.js"></script>
         <script src="js/war/war-validation.js"></script>
+        <script src="js/kingdom/family-chronicle.js"></script>
         <script src="js/core/save-validation.js"></script>
         <script src="js/recruitment/recruitment-system.js"></script>
         <script src="js/combat/battle-system.js"></script>
@@ -74,8 +75,8 @@
         <script src="js/war/dragons.js"></script>
         <script src="js/war/combatants.js"></script>
         <script src="js/war/world-societies.js"></script>
-<script src="js/war/community-life.js"></script>
-<script src="js/war/local-recruitment.js"></script>
+        <script src="js/war/community-life.js"></script>
+        <script src="js/war/local-recruitment.js"></script>
         <script src="js/war/frontier-ai.js"></script>
         <script src="js/war/world-ui.js"></script>
         <script src="js/war/warfare.js"></script>
@@ -89,12 +90,10 @@
         <script src="js/engine/daily-cycle.js"></script>
 
     <script>
-state=initial('central','Teste','Ensaio');state.gold=3000;state.food=3000;state.buildings.barracks=1;state.buildings.home=5;upgradeKingdom();speed=0;
-const visitor=WorldSocieties.create('kobold',null,240);visitor.name='Visitante de teste';
-const prisoner=WorldSocieties.all().find(p=>p.realm);prisoner.capturedBy='crown';prisoner.persuasion=85;
-const controls=document.createElement('div');controls.style='position:fixed;top:0;left:0;z-index:500;background:#263b49;padding:6px';controls.innerHTML='<button id="test-day">Simular 24 dias</button><button id="test-validate">Validar campanha</button><span id="test-status">Ensaio isolado</span>';document.body.append(controls);
-document.querySelector('#test-day').onclick=()=>{try{for(let i=0;i<24;i++)advance();document.querySelector('#test-status').textContent='24 dias simulados';}catch(e){document.querySelector('#test-status').textContent='Erro: '+e.message;}};
-document.querySelector('#test-validate').onclick=()=>{try{validateSave(JSON.parse(JSON.stringify(state)));document.querySelector('#test-status').textContent='Campanha validada';}catch(e){document.querySelector('#test-status').textContent='Erro: '+e.message;throw e;}};
-isMandatoryModal=false;document.querySelector('#modal').close();render();
-</script></body>
-</html>
+state=initial('central','Aldric','Valen');state.buildings.home=10;upgradeKingdom();speed=0;
+const father=byId(state.king);father.genes.skin=0;father.genes.hair=2;father.hairstyle=0;delete father.paperDoll;
+const mother=makePerson({age:25,sex:'F'});mother.name='Elena';mother.genes.skin=2;mother.genes.hair=1;mother.hairstyle=3;state.people.push(mother);ensurePerson(mother);CampaignAppearance.ensure(father);CampaignAppearance.ensure(mother);
+const child=childOf(father,mother);child.name='Herança';state.people.push(child);ensurePerson(child);
+isMandatoryModal=false;document.querySelector('#modal').close();
+render=function(){document.querySelector('#app').innerHTML='<main style="padding:24px"><h1>Paper doll na campanha</h1><p>Peças pré-coloridas · herança dos pais · ensaio isolado</p><button id="grow">Ver filho adulto</button> <button id="title">Ver traje nobre</button> <button id="reload-save">Salvar e recarregar</button><p id="validation"></p><div style="display:flex;gap:24px;flex-wrap:wrap">'+[father,mother,byId(child.id)].map(p=>'<section style="width:230px"><h2>'+esc(p.name)+'</h2>'+portrait(p)+fullPortrait(p)+'<p>Pele: '+(p.paperDoll?.skin||'racial')+' · cabelo: '+(p.paperDoll?.hair||'racial')+'</p><p>'+Math.floor(p.age)+' anos · '+SOCIAL[p.social]+'</p></section>').join('')+'</div></main>';document.querySelector('#grow').onclick=()=>{const p=byId(child.id);p.age=18;p.level=5;render();};document.querySelector('#title').onclick=()=>{byId(child.id).social=2;render();};document.querySelector('#reload-save').onclick=()=>{validateSave(JSON.parse(JSON.stringify(state)));state=JSON.parse(JSON.stringify(state));upgradeKingdom();render();document.querySelector('#validation').textContent='Save válido: identidade preservada após recarga.';};};render();
+</script></body></html>

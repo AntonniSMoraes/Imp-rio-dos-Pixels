@@ -29,12 +29,13 @@ globalThis.Warfare = (() => {
         if(!edge?.points.some(([x,z])=>TerritoryGeometry.height(x,z)>.17))continue;parents.set(n,i);queue.push(n);}
     }return null;
   }
-  function deployed(id){return Boolean(state?.warfare?.armies.some(a=>a.status!=='done'&&a.men.includes(id)) || state?.warfare?.raids?.some(a=>a.status!=='done'&&a.defenders?.includes(id)));}
+  function deployed(id){return Boolean((typeof CommunityLife!=='undefined'&&CommunityLife.deployed(id)) || state?.warfare?.armies.some(a=>a.status!=='done'&&a.men.includes(id)) || state?.warfare?.raids?.some(a=>a.status!=='done'&&a.defenders?.includes(id)));}
   function candidates(lord){return domainPeople(lord).filter(p=>adult(p)&&p.hp>=30&&!onMission(p));}
   function declare(id){ensure();const realm=state.warfare.realms.find(r=>r.id===id);if(!realm||!realm.tiles.length)return false;realm.atWar=true;realm.ally=false;realm.relation=-60;report('A Coroa declarou guerra ao '+realm.name+'.');return true;}
   function mobilize(commanderId,target,men){
     ensure();const lord=byId(commanderId),enemy=owner(target),fail=message=>({ok:false,message});
     if(!lord?.alive||!adult(lord)||(lord.id!==state.king&&lord.social<2)||onMission(lord))return fail('Escolha um regente ou nobre adulto disponível.');
+    if(typeof CommunityLife!=='undefined'&&CommunityLife.list().some(c=>c.claim&&c.tile===target))return fail('Há uma reivindicação em andamento nesta província.');
     if(!enemy?.atWar)return fail('Declare guerra ao reino antes de mobilizar.');
     if(state.warfare.armies.filter(a=>a.status!=='done').length>=12)return fail('O limite desta versão é de 12 exércitos simultâneos.');
     if(!state.buildings.barracks)return fail('Construa um quartel antes de mobilizar.');
@@ -66,16 +67,24 @@ globalThis.Warfare = (() => {
       if(result==='right'){
         WarCombat.capture(men,enemy.id);a.status='done';report('Derrota na Vila '+(a.target+1)+'. Sobreviventes foram capturados.');
       }else if(result==='left'){
-        WarCombat.capture(defenders,'crown');conquer(a.target,'crown');
+        if(typeof LocalRecruitment==='undefined')WarCombat.capture(defenders,'crown');conquer(a.target,'crown',byId(a.commander));
         report('Vitória! Vila '+(a.target+1)+' conquistada para a Coroa.');recall(a.id);
       }else if(a.round>=10||!byId(a.commander)?.alive){report('O exército recuou após o combate.');recall(a.id);}
     }
     state.warfare.armies=state.warfare.armies.filter(a=>a.status!=='done'||state.warfare.armies.indexOf(a)>=state.warfare.armies.length-10);
     FrontierAI.tick();
     WorldSocieties.tick();
+    if(typeof CommunityLife!=="undefined")CommunityLife.tick();
   }
-  function conquer(index,winner){
+  function conquer(index,winner,commander){
+    if(!tile(index)||!(winner==='crown'||state.warfare.realms.some(r=>r.id===winner)))return;
     const previous=owner(index);
+    if(previous?.id===winner || (winner==='crown' && owned().has(index)))return;
+    const formerLord=state.people.find(p=>p.alive&&(p.tiles||[]).includes(index)) || ((state.royalLands||[]).includes(index)?byId(state.king):null);
+    if(typeof FamilyChronicle!=='undefined') {
+      if(winner==='crown')FamilyChronicle.record('conquest',[byId(state.king),commander], 'Vila '+(index+1)+' conquistada para a Coroa'+(commander?' sob comando de '+commander.name:'')+'.',{tile:index});
+      else if(formerLord)FamilyChronicle.record('loss',[formerLord,byId(state.king)],'A Casa '+formerLord.family+' perdeu a Vila '+(index+1)+' para '+(state.warfare.realms.find(r=>r.id===winner)?.name||winner)+'.',{tile:index});
+    }
     if(previous){previous.tiles=previous.tiles.filter(i=>i!==index);delete previous.garrisons[index];if(previous.capital===index)previous.capital=previous.tiles[0]??null;}
     if(winner==='crown')state.royalLands=[...new Set([...(state.royalLands||[]),index])];
     else {
@@ -85,6 +94,7 @@ globalThis.Warfare = (() => {
       const seat=state.capitalIndex??({north:0,central:240,south:480}[state.region]??240);
       if(seat===index){const replacement=(state.royalLands||[]).find(WorldSocieties.own);if(replacement!==undefined)state.capitalIndex=replacement;else delete state.capitalIndex;report('A capital caiu. '+(replacement!==undefined?'A corte se refugiou na Vila '+(replacement+1)+'.':'A Coroa está sem sede e precisa reconquistar terras.'));}
     }
+    if(typeof LocalRecruitment!=='undefined')LocalRecruitment.settle(index,winner,previous?.id);
   }
   return {ensure,owner,owned,route,deployed,candidates,declare,mobilize,recall,tick,report,conquer};
 })();

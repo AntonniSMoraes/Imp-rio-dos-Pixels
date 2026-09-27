@@ -48,7 +48,7 @@ const Betrothals = (() => {
       if (!a?.alive || !b?.alive || related(a,b) || partners(a).length || partners(b).length) {
         p.status='cancelled';p.ended=state.day;
         log('Promessa de casamento encerrada por falecimento ou impedimento, sem penalidade.');
-      } else if (adult(a) && adult(b) && !a.capturedBy && !b.capturedBy) unite(a,b);
+      } else if (adult(a) && adult(b) && !a.capturedBy && !b.capturedBy) {if(typeof MarriageCouncil!=='undefined')MarriageCouncil.propose(a,b,false);else unite(a,b);}
     }
     if (state.day%48) return;
     // The Crown's descendants remain under the player's control.

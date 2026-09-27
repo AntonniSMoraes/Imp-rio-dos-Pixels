@@ -10,10 +10,10 @@ let editBorderMode = false;
 let selectedBorderNoble = null;
 
 const byId = function(id) { return state ? state.people.find(function(p) { return p.id === id; }) : null; };
-const adult = function(p) { return p && p.alive && p.level >= 5 && isAdultAge(p); };
+const adult = function(p) { return p && p.alive && !p.away && p.level >= 5 && isAdultAge(p); };
 const headOf = function(p) { return byId(p.houseHead) || p; };
 const isHead = function(p) { return Boolean(p && !byId(p.unionHead)?.alive && (p.id === state?.king || p.houseHead === p.id)); };
-const partners = function(p) { return (p.partners || []).map(function(x) { return byId(x.id); }).filter(function(p) { return p?.alive; }); };
+const partners = function(p) { return (p.partners || []).map(function(x) { return byId(x.id); }).filter(function(p) { return p?.alive && !p.away; }); };
 
 function isRoyalFamilyMember(p) {
   if (!p || !state) return false;
@@ -175,6 +175,7 @@ function promoteSuccessorConcubine(head) {
 
 function upgradeKingdom() {
   if (!state) return;
+  if (typeof FamilyChronicle !== "undefined") FamilyChronicle.ensure();
   const old = !state.feudalVersion;
   if (old) {
     try { localStorage.setItem(KEY + '-antes-do-conselho', JSON.stringify(state)); } catch(e) {}
@@ -191,6 +192,7 @@ function upgradeKingdom() {
 
   for (const p of [...state.people, ...state.guests]) {
     ensurePerson(p);
+    if(typeof CampaignAppearance!=='undefined')CampaignAppearance.ensure(p);
     if (old && p.id === state.king) p.social = 8;
   }
   for (const p of state.people) {
@@ -211,6 +213,7 @@ function upgradeKingdom() {
   }
   Warfare.ensure();
   repairRelationships();
+  repairExclusiveUnions();
   Peerage.reconcile();
   pruneProposals();
   attachWaitingVassals();
@@ -353,7 +356,7 @@ function acceptance(a, b) {
 }
 
 function canUnion(a, b) {
-  if (!a || !b || a.capturedBy || b.capturedBy) return false;
+  if (!a || !b || a.capturedBy || b.capturedBy || exclusivePartnerOf(a) || exclusivePartnerOf(b)) return false;
   if (typeof Betrothals !== 'undefined' && (Betrothals.forPerson(a?.id) || Betrothals.forPerson(b?.id))) {
     return a.id !== b.id && a.sex !== b.sex && Betrothals.matches(a,b) && adult(a) && adult(b) && !related(a,b) && !partners(a).length && !partners(b).length;
   }
@@ -362,6 +365,35 @@ function canUnion(a, b) {
   const rankB = Math.max(getEffectiveTier(b), getEffectiveTier(headOf(b)));
   if (rankA < rankB && (rankB - rankA) > 1) return false;
   return true;
+}
+
+function exclusivePartnerOf(p) {
+  if(!p)return null;
+  const living=(p.partners||[]).map(r=>({relation:r,person:byId(r.id)})).filter(x=>x.person?.alive);
+  const recorded=living.find(x=>x.person.id===p.exclusivePartnerId);
+  if(recorded)return recorded.person;
+  const candidates=living.filter(x=>x.relation.role==='concubino(a)' &&
+    (p.unionHead===x.person.id || p.feudalGrantor===x.person.id ||
+     (living.length===1 && (partners(x.person).length>1 || x.person.social>p.social))));
+  return candidates.sort((a,b)=>(a.relation.day||0)-(b.relation.day||0))[0]?.person || null;
+}
+function repairExclusiveUnions() {
+  for(const p of alive()) {
+    const head=exclusivePartnerOf(p);if(!head)continue;
+    p.exclusivePartnerId=head.id;
+    const extra=(p.partners||[]).filter(r=>r.id!==head.id&&byId(r.id)?.alive);
+    for(const relation of extra){
+      const other=byId(relation.id);
+      p.partners=p.partners.filter(r=>r.id!==other.id);
+      other.partners=(other.partners||[]).filter(r=>r.id!==p.id);
+      if(p.spouse===other.id)p.spouse=null;
+      if(other.spouse===p.id)other.spouse=null;
+      if(other.unionHead===p.id){other.unionHead=null;other.houseHead=other.id;}
+      state.relationshipHistory||=[];
+      state.relationshipHistory.push({a:p.id,b:other.id,day:state.day,reason:'exclusividade de concubinato'});
+      log('Conselho: vínculo adicional de '+p.name+' encerrado; união com '+head.name+' preservada.');
+    }
+  }
 }
 
 marriageCandidates = function(p) { return adults().filter(function(x) { return canUnion(p, x); }); };
@@ -386,8 +418,10 @@ function absorbHouse(a, b) {
 }
 
 function unite(a, b) {
+  if(typeof MarriageCouncil!=='undefined'&&MarriageCouncil.find(a,b)?.status==='refused')return false;
   if (!canUnion(a, b)) return false;
   const roleChosen = partners(a).length === 0 ? 'consorte' : 'concubino(a)';
+  if(roleChosen==='concubino(a)')b.exclusivePartnerId=a.id;
   a.partners.push({ id: b.id, role: roleChosen, day: state.day });
   b.partners.push({ id: a.id, role: roleChosen, day: state.day });
   if (roleChosen === 'consorte') {
@@ -400,6 +434,7 @@ function unite(a, b) {
     leader.unionHead = null;
     Betrothals.complete(a,b);
   }
+  if (typeof FamilyChronicle !== "undefined") FamilyChronicle.record("union", [a,b], a.name + " e " + b.name + " celebraram união (" + roleChosen + ").");
   absorbHouse(a, b);
   pruneProposals();
   log('Casamento celebrado: ' + a.name + ' e ' + b.name + ' (' + roleChosen + ').');
@@ -411,7 +446,7 @@ function repairRelationships() {
   if (state.relationshipVersion === 2) {
     for (const p of alive()) {
       if (!p.unionHead && p.houseHead !== p.id && partners(p).some(function(x) { return x.id === p.houseHead; })) p.unionHead = p.houseHead;
-      if (byId(p.unionHead)?.alive) p.houseHead = byId(p.unionHead).houseHead || p.unionHead;
+      if (byId(p.unionHead)?.alive && !byId(p.unionHead)?.away) p.houseHead = byId(p.unionHead).houseHead || p.unionHead;
       else p.unionHead = null;
     }
     return;
@@ -463,6 +498,7 @@ function repairRelationships() {
 }
 
 marry = function(aId, bId) {
+  if(typeof MarriageCouncil!=="undefined"){const a=byId(aId),b=byId(bId);if(!a||!b)return;const ok=MarriageCouncil.propose(a,b);save();render();refreshPersonModal();toast(ok?"Casamento celebrado.":MarriageCouncil.find(a,b)?.status==="refused"?"Recusado por "+MarriageCouncil.find(a,b).rejected.map(r=>byId(r.id)?.name).join(" e ")+". Consulte Recusas e dotes.":"Casamento indisponível: verifique elegibilidade.");return;}
   const a = byId(aId);
   const b = byId(bId);
   if (!canUnion(a, b)) return toast('Casamento indisponível: verifique maioridade, chefia familiar ou diferença social.');
@@ -501,7 +537,7 @@ function politicalCycle() {
   for (const a of availableHeads) {
     if (proposals >= 2) break;
     const bs = candidates.filter(function(b) {
-      return canUnion(a, b) && (!state.proposalHistory[[a.id, b.id].sort().join(':')] || state.day - state.proposalHistory[[a.id, b.id].sort().join(':')] > 64);
+      return canUnion(a, b) && !(typeof MarriageCouncil!=='undefined'&&MarriageCouncil.find(a,b)?.status==='refused') && (!state.proposalHistory[[a.id, b.id].sort().join(':')] || state.day - state.proposalHistory[[a.id, b.id].sort().join(':')] > 64);
     }).sort(function(x, y) {
       const scoreX = x.rank + (x.traits.includes('sexy') ? 3 : 0) + (x.id === headOf(a).liege ? 5 : 0);
       const scoreY = y.rank + (y.traits.includes('sexy') ? 3 : 0) + (y.id === headOf(a).liege ? 5 : 0);
@@ -536,6 +572,7 @@ function politicalCycle() {
       }
       continue;
     }
+    if(typeof MarriageCouncil!=='undefined'){MarriageCouncil.propose(a,b,false);continue;}
     if (Math.random() < acceptChance && (Math.random() < acceptance(a, b) && Math.random() < acceptance(b, a))) unite(a, b);
     else log('Negociação entre ' + a.family + ' e ' + b.family + ': proposta de casamento recusada.');
   }
@@ -592,6 +629,7 @@ function succession(p) {
   const heir = nominated?.alive && adult(nominated) && nominated.social < p.social && bloodDescendant(nominated,p) ? nominated : chooseHeir(p);
   if (!heir) return false;
   const old = p.social;
+  if (typeof FamilyChronicle !== "undefined") FamilyChronicle.record("succession", [p,heir], heir.name + " sucedeu " + p.name + " no título de " + title(p) + ".");
   heir.social = old;
   heir.liege = p.liege;
   heir.territory = p.territory;
@@ -951,6 +989,8 @@ dynastyView = function() {
   if (!state) return '';
   const women = alive().filter(function(p) { return p.sex === 'F'; });
   let body = '<section class="panel"><div class="panel-body">' + feudalControls(byId(state.king)) + '</div></section><div class="subtabs"><button data-view="hierarchy">Hierarquia de vassalos</button><button data-action="kingdom-rules">Regras</button></div>' + proposalsView() + betrothalView();
+  if(typeof MarriageCouncil!=='undefined')body+=MarriageCouncil.view()+VassalAid.view();
+  if (typeof FamilyChronicle !== 'undefined') body += '<section class="panel section-space"><div class="panel-title"><h2>Crônica familiar</h2></div><div class="panel-body">' + FamilyChronicle.button('house',state.king,'História da casa real') + ' ' + FamilyChronicle.button('all','','Todas as casas') + '</div></section>';
   body += '<section class="panel section-space"><div class="panel-title"><h2>Nascimentos · diagnóstico por família</h2></div><div class="panel-body">';
   if (women.length) {
     body += women.map(function(p) { return '<div class="kv"><button data-person="' + p.id + '">' + esc(p.name) + ' ' + esc(p.family) + '</button><span>' + breedingStatus(p) + '</span></div>'; }).join('');
@@ -970,6 +1010,8 @@ familyControls = function(p) {
   const heirName = heirObj ? heirObj.name : 'aguardando descendente';
 
   let html = '<section class="family-section">';
+  if(p.away)html+='<p class="notice">Desertou para '+esc(state.warfare.realms.find(r=>r.id===p.realm)?.name||'outra facção')+'. Mantido na genealogia.</p>';
+  if (typeof FamilyChronicle !== 'undefined') html += FamilyChronicle.button('person',p.id,'História deste personagem') + ' ' + FamilyChronicle.button('house',headOf(p).id,'História desta casa');
   html += '<h3>Casa ' + esc(headOf(p).family) + '</h3>';
   html += '<div class="kv"><span>Chefia</span><button data-person="' + headOf(p).id + '">' + esc(headOf(p).name) + ' (' + title(headOf(p)) + ')</button></div>';
   html += '<p class="hint">' + (isHead(p) ? 'Chefe de família: o cônjuge com maior prestígio lidera a casa.' : 'Consortes e membros da casa não iniciam casamentos.') + '</p>';
@@ -978,14 +1020,15 @@ familyControls = function(p) {
     return '<div class="relative">' + personLink(x) + '<small>' + esc(rel ? rel.role : '') + '</small></div>';
   }).join('');
 
-  if (adult(p) && isHead(p) && candidates.length) {
+  if (adult(p) && isHead(p) && !exclusivePartnerOf(p) && candidates.length) {
     html += '<label class="field-label">Propor Casamento (Automático: ' + nextRole + ')</label>';
     html += '<select id="spouse-' + p.id + '">' + candidates.map(function(x) { return '<option value="' + x.id + '">' + esc(x.name) + ' · ' + RANKS[x.rank] + ' · ' + title(x) + '</option>'; }).join('') + '</select>';
     html += '<button class="primary full" data-marry="' + p.id + '">Celebrar casamento</button>';
-  } else if (adult(p) && isHead(p)) {
+  } else if (adult(p) && isHead(p) && !exclusivePartnerOf(p)) {
     html += '<p class="hint">Sem candidatos de união elegíveis (diferença social excessiva ou parentesco).</p>';
   }
 
+  if(exclusivePartnerOf(p))html+='<p class="hint">União exclusiva com '+esc(exclusivePartnerOf(p).name)+'. Receber um título não permite novos parceiros.</p>';
   if (adult(p) && ['beastfolk','wolf','cat','bunny'].includes(p.race)) html += '<p class="hint">Preferência de matilha: maior aceitação de união com um chefe de força superior. A escolha continua sujeita à aceitação do personagem.</p>';
   const promise = Betrothals.forPerson(p.id);
   if (promise) html += '<p class="hint">Promessa de casamento com ' + esc(byId(promise.a === p.id ? promise.b : promise.a)?.name || '') + ' · aguardando maioridade.</p><button data-betrothal-break="' + promise.id + '">Romper promessa</button>';
@@ -1002,7 +1045,7 @@ familyControls = function(p) {
   if(p.social===1)html+='<p class="hint">Formação de cavaleiro: '+(p.knighthoodTraining||0)+'/48 dias de treino. Cada ano completo dá 5% de chance de investidura sem feudo.</p>';
   if(p.social===1)html+='<p>Conscritos: '+Conscription.count(p)+'/10 · baixas: '+(p.conscripts?.losses||0)+'</p>';
   html += feudalControls(p);
-  html += '<h4>Aparência pessoal</h4><p class="hint">Textura herdada: ' + TEXTURES[p.genes.texture] + '. Penteados não são herdados. A arte adulta utiliza o figurino do rank.</p></section>';
+  html += '<h4>Aparência pessoal</h4><p class="hint">Textura herdada: ' + TEXTURES[p.genes.texture] + '. Penteados não são herdados. O paper doll humano usa peças compatíveis com pele e cabelo herdados e roupa conforme o título. Tons sem peças, crianças e demais raças mantêm a arte racial; olhos e textura ainda não têm camadas próprias.</p></section>';
   return html;
 };
 
@@ -1128,7 +1171,7 @@ document.addEventListener('click', function(e) {
   if (b.dataset.acceptProposal) {
     const offer = state.proposals.find(function(x) { return x.id === b.dataset.acceptProposal; });
     const p = byId(offer ? offer.person : null);
-    if (p && unite(byId(state.king), p)) {
+    if (p && (typeof MarriageCouncil!=='undefined'?MarriageCouncil.propose(byId(state.king),p):unite(byId(state.king), p))) {
       state.proposals = state.proposals.filter(function(x) { return x.id !== offer.id; });
       save();
       render();
@@ -1136,10 +1179,12 @@ document.addEventListener('click', function(e) {
       pruneProposals();
       save();
       render();
-      toast('A proposta não é mais válida.');
+      const refusal=typeof MarriageCouncil!=='undefined'&&MarriageCouncil.find(byId(state.king),p);
+      toast(refusal?.status==='refused'?'Recusado por '+refusal.rejected.map(r=>byId(r.id)?.name).join(' e ')+'. Consulte Recusas e dotes.':'A proposta não é mais válida.');
     }
   }
   if (b.dataset.rejectProposal) {
+    const rejected=state.proposals.find(x=>x.id===b.dataset.rejectProposal);if(rejected&&typeof MarriageCouncil!=='undefined')MarriageCouncil.refuse(byId(state.king),byId(rejected.person),[byId(state.king)]);
     state.proposals = state.proposals.filter(function(x) { return x.id !== b.dataset.rejectProposal; });
     save();
     render();

@@ -1,21 +1,21 @@
 'use strict';
-// External people live outside state.people until they join the player's realm.
+// Foreign residents include emigrants retained in state.people for genealogy.
 const WorldSocieties = (() => {
-  const all=()=>state.warfare.people||[];
+  const all=()=>[...(state.warfare.people||[]),...state.people.filter(p=>p.away)];
   const by=id=>state.people.find(p=>p.id===id)||all().find(p=>p.id===id);
   const own=i=>(state.royalLands||[]).includes(i)&&!alive().some(p=>p.id!==state.king&&p.social>=2&&(p.tiles||[p.territory]).includes(i));
   const occupied=i=>Warfare.owner(i)||(state.royalLands||[]).includes(i)||alive().some(p=>(p.tiles||[]).includes(i));
   const biome=i=>getTileBiome(i);
-  const allowed=(race,i)=>race==='elf'?biome(i)==='floresta':race==='darkElf'||['lamia','harpy','kobold'].includes(race)?biome(i)==='mina':race==='beastfolk'?['floresta','planicie'].includes(biome(i)):true;
+  const allowed=(race,i)=>race==='elf'?biome(i)==='floresta':race==='darkElf'||['lamia','harpy','kobold'].includes(race)?biome(i)==='mina':['beastfolk','wolf','cat','bunny','half-wolf','half-cat','half-bunny'].includes(race)?['floresta','planicie'].includes(biome(i)):true;
   function create(race,realm,index) {
     const p=makePerson({age:18+rand(24),rank:rand(3),sex:race==='harpy'?'F':pick(['M','F'])});
     p.race=race;p.ancestry=ancestryFromRace(race);p.racialTraits=[...(RACES[race]?.traits||[])];
     p.realm=realm;p.location=index;p.caste=race==='elf'?'baixa':null;p.partners||=[];
     for(const key of Object.keys(p.attrs))p.attrs[key]*=.75+Math.random()*.6;
-    all().push(p);return p;
+    state.warfare.people.push(p);return p;
   }
   function ensure() {
-    const w=state.warfare;if(w.societyVersion===1)return;
+    const w=state.warfare;if(w.societyVersion===1){if(typeof CommunityLife!=='undefined')CommunityLife.ensure();if(typeof LocalRecruitment!=='undefined')LocalRecruitment.reconcile();return;}
     w.people||=[];w.habitats||=[];w.raids||=[];w.intel||={};
     const free=race=>TerritoryGeometry.all().provinces.filter(p=>p.landArea>2&&!occupied(p.index)&&allowed(race,p.index));
     for(const [race,name,color,size] of [['elf','Reino Silvestre','#5eae71',4],['darkElf','Domínio da Obsidiana','#9864c9',4],['beastfolk','Vila da Garra','#cc9b62',1],['beastfolk','Vila da Presa','#b87b56',1]]){
@@ -29,21 +29,24 @@ const WorldSocieties = (() => {
       const pool=free(race).filter(p=>!w.habitats.some(h=>h.tile===p.index)),p=pool[Math.floor(pool.length*(.2+n*.45))];if(!p)continue;
       w.habitats.push({race,tile:p.index});for(let j=0;j<2;j++)create(race,null,p.index);
     }
-    w.societyVersion=1;sync();
+    w.societyVersion=1;sync();if(typeof CommunityLife!=='undefined')CommunityLife.ensure();
   }
-  function garrison(realm,index){return all().filter(p=>p.realm===realm&&p.location===index&&p.alive&&!p.capturedBy&&!state.warfare.raids.some(a=>a.status!=='done'&&a.men.includes(p.id)));}
+  function garrison(realm,index){return all().filter(p=>p.realm===realm&&p.location===index&&p.alive&&!p.capturedBy&&!(typeof CommunityLife!=="undefined"&&CommunityLife.deployed(p.id))&&!state.warfare.raids.some(a=>a.status!=='done'&&a.men.includes(p.id)));}
   function guards(realm,index){if(state.warfare.armies.some(a=>a.status==='battle'&&a.target===index))return [];return garrison(realm,index).filter(p=>WarCombat.fit(p)&&!state.warfare.raids.some(a=>a.status!=='done'&&a.defenders?.includes(p.id)));}
   function sync(){for(const r of state.warfare.realms)for(const i of r.tiles)r.garrisons[i]=garrison(r.id,i).filter(WarCombat.fit).reduce((n,p)=>n+WarCombat.strength(p),0);}
   function join(p,realm='crown'){
+    if(!p?.alive || !all().includes(p))return false;
     if(realm==='crown'){
       if(alive().length>=capacity())return false;
-      state.warfare.people=all().filter(x=>x.id!==p.id);p.realm=null;p.capturedBy=null;p.job='idle';p.houseHead=p.id;p.liege=state.king;p.social=0;p.loyalty=60;p.source={type:'adult',day:state.day};p.location=undefined;
-      state.people.push(p);if(typeof ensurePerson==='function')ensurePerson(p);
+      state.warfare.people=state.warfare.people.filter(x=>x.id!==p.id);p.away=false;p.realm=null;p.capturedBy=null;p.job='idle';p.houseHead=p.id;p.liege=state.king;p.social=0;p.loyalty=60;p.source={type:'adult',day:state.day};p.location=undefined;
+      if(!state.people.includes(p))state.people.push(p);if(typeof ensurePerson==='function')ensurePerson(p);
     }else {p.realm=realm;p.capturedBy=null;}
+    delete p.communityId;delete p.residentStatus;
     return true;
   }
-  function recruit(id){const p=all().find(p=>p.id===id);if(!p?.alive||p.realm||p.capturedBy||!own(p.location))return false;return join(p);}
+  function recruit(id){if(typeof LocalRecruitment!=='undefined')return LocalRecruitment.offer(id);const p=all().find(p=>p.id===id);if(!p?.alive||p.realm||p.capturedBy||!own(p.location))return false;return join(p);}
   function persuade(id){
+    if(typeof LocalRecruitment!=="undefined")return LocalRecruitment.offer(id);
     const p=all().find(p=>p.id===id);if(!p?.alive||p.capturedBy!=='crown'||p.lastPersuasion===state.day||state.gold<2||state.food<5)return false;
     p.lastPersuasion=state.day;state.gold-=2;state.food-=5;
     const king=by(state.king),skill=king?.alive&&!king.capturedBy?Math.sqrt(WarCombat.strength(king)):1;
@@ -52,7 +55,7 @@ const WorldSocieties = (() => {
     return true;
   }
   function ransom(id){const p=state.people.find(p=>p.id===id);if(!p?.capturedBy||state.gold<30)return false;state.gold-=30;p.capturedBy=null;p.hp=Math.max(30,p.hp);return true;}
-  function visible(p){return state.people.includes(p)||p.capturedBy==='crown'||(!p.realm?own(p.location):state.warfare.realms.find(r=>r.id===p.realm)?.ally||state.warfare.intel[p.realm]?.until>=state.day);}
+  function visible(p){return (state.people.includes(p)&&!p.away)||(typeof LocalRecruitment!=='undefined'&&LocalRecruitment.local(p))||p.capturedBy==='crown'||(!p.realm?own(p.location):state.warfare.realms.find(r=>r.id===p.realm)?.ally||state.warfare.intel[p.realm]?.until>=state.day);}
   function spy(id){const r=state.warfare.realms.find(r=>r.id===id);if(!r||state.gold<15||state.warfare.intel[id]?.pending)return false;state.gold-=15;state.warfare.intel[id]={pending:true,ready:state.day+3,until:0};return true;}
   function treaty(id,action){const r=state.warfare.realms.find(r=>r.id===id);if(!r)return false;
     if(action==='alliance'){if(r.atWar||r.relation<0||state.gold<25)return false;state.gold-=25;r.ally=true;r.relation=Math.min(100,r.relation+30);}
@@ -61,15 +64,16 @@ const WorldSocieties = (() => {
   }
   function tick(){
     ensure();const w=state.warfare;
+    if(typeof LocalRecruitment!=="undefined")LocalRecruitment.reconcile();
     for(const info of Object.values(w.intel))if(info.pending&&state.day>=info.ready){info.pending=false;info.until=state.day+48;Warfare.report('Espiões retornaram: fichas inimigas disponíveis por um ano.');}
     for(const p of all())if(p.alive&&!p.capturedBy){
       p.age+=1/48;
       if(!w.raids.some(a=>a.status!=='done'&&a.men.includes(p.id))&&!w.armies.some(a=>a.status==='battle'&&a.target===p.location)&&!w.raids.some(a=>a.status==='battle'&&a.target===p.location))p.hp=Math.min(100,p.hp+1);
       if(p.realm&&state.day%12===0)WarCombat.train(p,12);
-      if(!p.realm&&state.day%4===0&&!w.habitats.some(h=>h.tile===p.location&&h.race===p.race)){
+      if(!p.realm&&!p.communityId&&(p.nextOfferDay||0)<=state.day&&state.day%4===0&&!w.habitats.some(h=>h.tile===p.location&&h.race===p.race)){
         const neighbors=TerritoryGeometry.get(p.location).neighbors.filter(i=>TerritoryGeometry.get(i).price!==null);if(neighbors.length)p.location=pick(neighbors);
         const r=Warfare.owner(p.location);if(r&&Math.random()<.3){join(p,r.id);Warfare.report(r.name+' recrutou um viajante.');}
-        else {const lord=alive().find(x=>x.id!==state.king&&x.social>=2&&(x.tiles||[]).includes(p.location));if(lord&&Math.random()<.3&&join(p)){p.liege=lord.id;p.houseHead=p.id;}}
+        else {const lord=alive().find(x=>x.id!==state.king&&x.social>=2&&(x.tiles||[]).includes(p.location));if(lord&&Math.random()<.3){if(typeof LocalRecruitment!=='undefined')LocalRecruitment.offer(p.id,lord);else if(join(p)){p.liege=lord.id;p.houseHead=p.id;}}}
       }
     }
     if(state.day%24===0&&all().filter(p=>p.alive&&!p.realm&&!p.capturedBy).length<24){
@@ -80,6 +84,7 @@ const WorldSocieties = (() => {
       if(border&&!r.atWar&&Math.random()<.25){r.relation=Math.max(-100,r.relation-(r.ally?10:15));if(r.relation<=-25){r.ally=false;r.atWar=true;}Warfare.report('Disputa de fronteira com '+r.name+': relação '+r.relation+(r.atWar?' · guerra declarada.':'.'));}
     }
     if(state.day%48===0)for(const r of w.realms)if(r.tiles.length&&all().filter(p=>p.alive&&p.realm===r.id).length<r.tiles.length*3)create(r.race,r.id,r.capital);
+    for(const r of w.realms)if(r.communityId&&!by(r.leader)?.alive){const heir=all().filter(p=>p.alive&&!p.capturedBy&&p.realm===r.id).sort((a,b)=>WarCombat.strength(b)-WarCombat.strength(a))[0];if(heir)r.leader=heir.id;}
     sync();
   }
   function elfMarriage(realmId,royalId,elfId){
@@ -92,7 +97,7 @@ const WorldSocieties = (() => {
     if(!join(b))return false;
     const oldHead=a.houseHead;
     if(!partners(a).length)a.houseHead=a.id;
-    if(!unite(a,b)){a.houseHead=oldHead;state.people=state.people.filter(p=>p.id!==b.id);Object.assign(b,former);all().push(b);return false;}
+    if(!unite(a,b)){a.houseHead=oldHead;state.people=state.people.filter(p=>p.id!==b.id);Object.assign(b,former);state.warfare.people.push(b);return false;}
     r.relation=Math.min(100,r.relation+10);return true;
   }
   return {all,by,own,allowed,ensure,create,garrison,guards,sync,join,recruit,persuade,ransom,visible,spy,treaty,tick,elfMarriage};

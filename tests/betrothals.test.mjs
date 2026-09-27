@@ -50,3 +50,26 @@ test('broken promises reduce future acceptance between sponsoring families',()=>
  const source=read('js/kingdom/kingdom.js');vm.runInContext(source.slice(source.indexOf('function acceptance('),source.indexOf('function canUnion(')),c);
  const before=c.acceptance(c.byId('king'),c.byId('lord'));c.api.arrange('a','b');c.api.breakPromise(c.api.active()[0].id,'king');assert.ok(c.acceptance(c.byId('king'),c.byId('lord'))<before);
 });
+
+test('concubines remain exclusive after receiving independent titles, while their partner can form unions',()=>{
+ const c=setup(),king=c.byId('king'),lord=c.byId('lord'),b=c.byId('b'),d=c.byId('d');
+ Object.assign(king,{sex:'M'});Object.assign(lord,{sex:'F'});Object.assign(b,{age:20});Object.assign(d,{age:20});
+ assert.equal(c.unite(king,lord),true);assert.equal(c.unite(king,b),true);
+ assert.equal(b.exclusivePartnerId,king.id);
+ Object.assign(b,{social:3,houseHead:b.id,unionHead:null,tiles:[12]});
+ const a=c.byId('a');Object.assign(a,{age:20,houseHead:a.id,parents:[]});
+ assert.equal(c.canUnion(b,a),false);assert.equal(c.canUnion(a,b),false);
+ assert.equal(c.canUnion(king,d),true);
+ king.alive=false;assert.equal(c.canUnion(b,a),true);
+});
+
+test('legacy concubine repair removes extra unions reciprocally without removing descendants or land',()=>{
+ const c=setup(),b=c.byId('b'),king=c.byId('king'),a=c.byId('a');
+ Object.assign(b,{age:20,houseHead:b.id,feudalGrantor:king.id,tiles:[12],partners:[{id:king.id,role:'concubino(a)'},{id:a.id,role:'consorte'}],spouse:a.id});
+ king.partners=[{id:b.id,role:'concubino(a)'}];a.partners=[{id:b.id,role:'consorte'}];a.spouse=b.id;a.unionHead=b.id;
+ c.byId('d').parents=[b.id,a.id];c.repairExclusiveUnions();
+ assert.equal(b.exclusivePartnerId,king.id);assert.equal(b.partners.length,1);assert.equal(a.partners.length,0);
+ assert.equal(b.spouse,null);assert.equal(a.spouse,null);assert.equal(a.houseHead,a.id);
+ assert.deepEqual(b.tiles,[12]);assert.deepEqual(c.byId('d').parents,[b.id,a.id]);
+ c.repairExclusiveUnions();assert.equal(c.state.relationshipHistory.length,1);
+});

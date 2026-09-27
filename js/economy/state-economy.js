@@ -1,7 +1,7 @@
 "use strict";
 
 function alive() {
-  return state ? state.people.filter((person) => person.alive) : [];
+  return state ? state.people.filter((person) => person.alive && !person.away) : [];
 }
 
 function adults() {
@@ -9,7 +9,7 @@ function adults() {
 }
 
 function onMission(person) {
-  return Boolean(person.capturedBy) || Boolean(state?.battle?.active && state.battle.party.includes(person.id)) || (typeof Warfare !== 'undefined' && Warfare.deployed(person.id));
+  return Boolean(person.away) || Boolean(person.capturedBy) || Boolean(state?.battle?.active && state.battle.party.includes(person.id)) || (typeof Warfare !== 'undefined' && Warfare.deployed(person.id));
 }
 
 function workers(job) {

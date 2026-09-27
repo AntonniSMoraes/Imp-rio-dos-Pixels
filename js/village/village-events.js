@@ -4,6 +4,10 @@ document.addEventListener("click", (e) => {
   const b = e.target.closest("button");
   if (!b) return;
 
+  if (b.dataset.familyChronicle) {
+    FamilyChronicle.open(b.dataset.familyChronicle,b.dataset.id,Number(b.dataset.page),b.dataset.kind);
+    return;
+  }
   if (b.dataset.view) {
     view = b.dataset.view;
     render();

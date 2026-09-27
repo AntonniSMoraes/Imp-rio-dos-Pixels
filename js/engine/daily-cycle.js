@@ -10,6 +10,7 @@ function advance() {
   birthCycle();
   politicalCycle();
   governmentCycle();
+  if(typeof VassalAid!=="undefined")VassalAid.tick();
   const foodBeforeWar = state.food;
   Warfare.tick();
   if (typeof Dragons !== 'undefined') Dragons.tick();

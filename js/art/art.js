@@ -33,12 +33,15 @@ function artURL(p, portrait = false) {
   }
 }
 function renderArtURL(p, portrait = false) {
+  const layered=globalThis.CampaignPaperDoll?.url(p,portrait);
+  if(layered)return layered;
   if (!animeAtlas)
     return "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
   const key = JSON.stringify([
     p.genes,
-    p.race,
+    characterArtProfile(p).race,
     p.caste,
+    p.biologicalCaste,
     p.hairstyle,
     p.appearance,
     p.rank,
@@ -65,7 +68,7 @@ function renderArtURL(p, portrait = false) {
     gradient.addColorStop(1, "#263e50");
     g.fillStyle = gradient;
     g.fillRect(0, 0, 192, 192);
-    const size = Math.max(88, f.w * 1.85, f.h * 1.7),
+    const size = Math.max(72, f.w * 1.7, f.h * 1.55),
       sx = Math.max(0, Math.min(256 - size, f.x + f.w / 2 - size / 2)),
       sy = Math.max(0, f.eyeY - size * 0.42);
     g.drawImage(composed.canvas, sx, sy, size, size, 0, 0, 192, 192);
@@ -76,14 +79,14 @@ function renderArtURL(p, portrait = false) {
   return url;
 }
 function portrait(p, cls = "portrait") {
-  if (!animeAtlas)
+  if (!animeAtlas && !globalThis.CampaignPaperDoll?.ready(p))
     return `<span class="${cls} art-loading" role="img" aria-label="${animeLoadError ? "Arte indisponível" : "Carregando retrato"}">${animeLoadError ? "!" : "…"}</span>`;
   const url = artURL(p, true);
   if (canvasReadBlocked) return `<span class="${cls} art-loading" role="img" aria-label="Retrato bloqueado pelo navegador">${esc(p.name?.slice(0, 1) || '?')}</span>`;
   return `<img class="${cls}" src="${url}" alt="Retrato anime medieval de ${esc(p.name)}" width="80" height="80">`;
 }
 function fullPortrait(p) {
-  if (!animeAtlas)
+  if (!animeAtlas && !globalThis.CampaignPaperDoll?.ready(p))
     return `<div class="full-character art-loading">${animeLoadError ? "Não foi possível carregar a arte." : "Carregando arte…"}</div>`;
   const url = artURL(p);
   if (canvasReadBlocked) return '<div class="full-character art-loading">Retrato bloqueado neste modo. Abra pelo servidor local para carregar a arte.</div>';

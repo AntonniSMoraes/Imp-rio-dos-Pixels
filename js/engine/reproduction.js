@@ -102,6 +102,7 @@ function deliverPregnancy(mother) {
   for (let index = 0; index < pregnancy.babies; index++) {
     const child = childOf(father, mother);
     state.people.push(child);
+    if (typeof FamilyChronicle !== "undefined") FamilyChronicle.record("birth", [child, father, mother], child.name + " nasceu. Pais: " + father.name + " e " + mother.name + ".");
     children.push(child.name);
     state.births++;
   }
@@ -121,6 +122,7 @@ function birthCycle(random = Math.random) {
   // Resolve pregnancies every day, independently of partners, food or housing.
   for (const mother of [...state.people]) {
     const cycle = ensureReproduction(mother, state.day);
+    if(mother.away)continue;
     if (!mother.alive) { cycle.pregnancy = null; continue; }
     if (cycle.pregnancy && state.day >= cycle.pregnancy.dueDay) deliverPregnancy(mother);
   }

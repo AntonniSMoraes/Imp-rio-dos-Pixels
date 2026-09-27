@@ -2,6 +2,7 @@
 const DomainAutonomy = (() => {
   const lords=()=>alive().filter(p=>p.id!==state.king&&p.social>=2&&p.tiles?.length&&!Peerage.consort(p)&&!p.capturedBy);
   function visible(p){
+    if(p.away)return false;
     if(p.id===state.king||p.liege===state.king)return !Peerage.consort(p)||p.unionHead===state.king;
     const owner=AnnualEconomy.owner(p);
     return !owner||owner.id===state.king;

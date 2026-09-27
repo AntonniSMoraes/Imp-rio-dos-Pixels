@@ -29,6 +29,7 @@ function afford(p) {
 }
 function death(p, reason) {
   if (!p.alive || !state) return;
+  if (typeof FamilyChronicle !== "undefined") FamilyChronicle.record("death", [p], p.name + " " + p.family + " morreu " + reason + ".");
   p.alive = false;
   p.hp = 0;
   p.deathReason = reason;

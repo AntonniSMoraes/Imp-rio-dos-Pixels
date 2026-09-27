@@ -106,8 +106,11 @@ function childOf(firstParent, secondParent) {
   });
   Object.assign(child, inheritGenes(firstParent, secondParent));
   Object.assign(child, heritage);
+  if(typeof CampaignAppearance!=='undefined')CampaignAppearance.inherit(child,[firstParent,secondParent]);
 
   child.attrs = inheritAttributes(firstParent, secondParent);
+  child.inheritance = inheritanceRecord(firstParent, secondParent, child.attrs);
+  expressBirthBiology(child, [firstParent, secondParent]);
   child.high = [];
   return child;
 }

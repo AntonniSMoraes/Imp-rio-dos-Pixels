@@ -56,7 +56,7 @@ export function createViewer(container, labels, world, onSelect, onBearing = () 
       button.className = 'city-label';
       const races = [...new Set([city.race, ...(world.habitats||[]).filter(h=>h.tile===city.index||h.tile===city.point.province).map(h=>h.race)].filter(Boolean))];
       for(const race of races){const icon=document.createElement('img');icon.src=raceIcon(race);icon.alt=raceNames[race]||race;icon.width=24;icon.height=24;button.append(icon);}
-      const name=document.createElement('span');name.textContent=(city.capital ? '♜ ' : '⌂ ') + city.name;button.append(name);
+      const name=document.createElement('span');name.textContent=(city.capital ? '♜ ' : '⌂ ') + city.name + ((world.habitats||[]).some(h=>h.claiming&&h.tile===city.index)?' ⚔ Reivindicação':'');button.append(name);
       button.onclick = () => onSelect(city.point.province ?? city.index);
       labels.append(button);
       button.style.borderColor = city.color;
@@ -65,11 +65,11 @@ export function createViewer(container, labels, world, onSelect, onBearing = () 
       return { button, point: new THREE.Vector3(p.x, (p.base ?? Math.max(.1, heightAt(p.x, p.z))) + (p.kind === 'castle' ? 2.3 : p.kind === 'manor' ? 1.8 : p.kind === 'house' ? .9 : .4), p.z) };
     });
     for(const dragon of world.dragons||[]){if(!dragon.point)continue;const button=document.createElement('span');button.className='city-label';button.style.pointerEvents='none';button.textContent=dragon.warning!==null?'🐉 ⚠':'🐉';button.title='Dragão errante';labels.append(button);labelItems.push({button,point:new THREE.Vector3(dragon.point.x,dragon.point.base+1.5,dragon.point.z)});}
-    for(const h of world.habitats||[]){if(!h.point||world.cities.some(city=>city.point&&(h.tile===city.index||h.tile===city.point.province)))continue;const button=document.createElement('button');button.className='city-label';button.title=raceNames[h.race]+' · habitat';const icon=document.createElement('img');icon.src=raceIcon(h.race);icon.alt=button.title;icon.width=28;icon.height=28;button.append(icon);button.onclick=()=>onSelect(h.tile);labels.append(button);labelItems.push({button,point:new THREE.Vector3(h.point.x,h.point.base+.8,h.point.z)});}
+    for(const h of world.habitats||[]){if(!h.point||world.cities.some(city=>city.point&&(h.tile===city.index||h.tile===city.point.province)))continue;const button=document.createElement('button');button.className='city-label';button.title=h.name?(h.name+(h.claiming?' · Reivindicação territorial':'')):raceNames[h.race]+' · habitat';const icon=document.createElement('img');icon.src=raceIcon(h.race);icon.alt=button.title;icon.width=28;icon.height=28;button.append(icon);button.onclick=()=>onSelect(h.tile);labels.append(button);labelItems.push({button,point:new THREE.Vector3(h.point.x,h.point.base+.8,h.point.z)});}
     for(const person of world.people||[]){
       if(!person.inspectable)continue;
       const pixel=inhabitants.children.find(child=>child.userData.person===person.id);if(!pixel)continue;
-      const button=document.createElement('button');button.className='city-label visitor-inspect';button.textContent='🔎';button.title='Inspecionar viajante nas terras da Coroa';button.setAttribute('aria-label',button.title);button.onclick=()=>onPerson(person.id);labels.append(button);
+      const button=document.createElement('button');button.className='city-label visitor-inspect';button.textContent='🔎';button.title='Inspecionar personagem local';button.setAttribute('aria-label',button.title);button.onclick=()=>onPerson(person.id);labels.append(button);
       labelItems.push({button,point:pixel.position.clone().add(new THREE.Vector3(0,.4,0))});
     }
     dirty = true;

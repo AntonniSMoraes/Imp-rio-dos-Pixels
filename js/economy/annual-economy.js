@@ -13,11 +13,11 @@ const AnnualEconomy = (() => {
   function owner(p) {
     const king = state.people.find(x => x.id === state.king);
     const seen = new Set();
-    while (p && !seen.has(p.id)) {
+    while (p && !p.away && !seen.has(p.id)) {
       seen.add(p.id);
       if (p.id === state.king) return king;
       const head = state.people.find(x => x.id === p.unionHead && x.alive);
-      if (head) { p = head; continue; }
+      if (head && !head.away) { p = head; continue; }
       if (p.social >= 2 && p.tiles?.length) return p;
       const household = state.people.find(x=>x.alive && x.id===p.houseHead && x.id!==p.id && x.social>=2);
       p = household || state.people.find(x => x.alive && x.id === p.liege);
@@ -38,7 +38,7 @@ const AnnualEconomy = (() => {
         const village = realm.villageAccounts[tile] ||= {};
         account(village);
         const purse = tile === realm.capital ? realm.treasury : village.treasury;
-        const residents = (state.warfare.people || []).filter(p => p.alive && !p.capturedBy && p.realm === realm.id && p.location === tile);
+        const residents = [...(state.warfare.people || []),...state.people.filter(p=>p.away)].filter(p => p.alive && !p.capturedBy && p.realm === realm.id && p.location === tile);
         const available = residents.filter(p => p.age >= 18 && !(state.warfare.raids || []).some(r => r.status !== 'done' && (r.men.includes(p.id) || r.defenders?.includes(p.id))));
         available.forEach((p, index) => {
           const job = ['food','wood','iron'][index % 3];
