@@ -13,6 +13,7 @@ function advance() {
   if(typeof VassalAid!=="undefined")VassalAid.tick();
   const foodBeforeWar = state.food;
   Warfare.tick();
+  if(typeof LocalRecruitment!=='undefined')LocalRecruitment.custodyTick();
   if (typeof Dragons !== 'undefined') Dragons.tick();
   if (state.economyBalance) state.economyBalance.food -= foodBeforeWar - state.food;
   save();

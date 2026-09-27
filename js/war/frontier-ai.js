@@ -25,7 +25,7 @@ const FrontierAI = (() => {
         for(const p of attackers.filter(p=>p.alive&&!p.capturedBy))p.location=raid.target;
         raid.status='done';Warfare.report(realm.name+' conquistou a Vila '+(raid.target+1)+'.');
       }else if(winner==='right'){
-        WarCombat.capture(raid.men.map(WorldSocieties.by).filter(Boolean),targetOwner?.id||'crown');
+        WarCombat.capture(raid.men.map(WorldSocieties.by).filter(Boolean),targetOwner?.id||'crown',raid.target);
         raid.status='done';Warfare.report('Ataque de '+realm.name+' repelido na Vila '+(raid.target+1)+'.');
       }else if(raid.round>=10){raid.status='done';Warfare.report(realm.name+' interrompeu uma incursão após resistência prolongada.');}
     }

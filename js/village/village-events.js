@@ -103,7 +103,7 @@ document.addEventListener("click", (e) => {
   if (action === "menu")
     modal(
       "Sua campanha",
-      '<div class="menu-actions"><button data-action="save">Salvar progresso</button><button data-action="export">Exportar progresso</button><button data-action="import">Importar progresso</button><button data-action="recruit-info">Chamado de recrutamento</button><button data-action="reset">Nova campanha</button><button data-action="help">Como jogar</button><a href="paper-doll.html" target="_blank" rel="noopener">Abrir ateliê de personagens ↗</a></div><p class="hint">O jogo é local. O progresso fica neste navegador; exporte uma cópia para guardar ou trocar de dispositivo.</p>',
+      '<div class="menu-actions"><button data-action="save">Salvar progresso</button><button data-action="export">Exportar progresso</button><button data-action="import">Importar progresso</button><button data-action="recruit-info">Chamado de recrutamento</button><button data-action="reset">Nova campanha</button><button data-action="help">Como jogar</button></div><p class="hint">O jogo é local. O progresso fica neste navegador; exporte uma cópia para guardar ou trocar de dispositivo.</p>',
     );
   if (action === "save")
     toast(

@@ -1,5 +1,5 @@
 // Keep the shell manifest synchronized when adding entry points or assets.
-const CACHE_NAME = 'imperio-pixels-v30-campaign-paper-doll';
+const CACHE_NAME = 'imperio-pixels-v35-frontier-deployment';
 const ASSETS_TO_CACHE = [
   "./js/paper-doll/campaign-identity.js",
   "./js/paper-doll/campaign-renderer.mjs",

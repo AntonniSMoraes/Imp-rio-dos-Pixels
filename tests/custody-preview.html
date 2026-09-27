@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="pt-BR">
-    <head>
+    <head><base href="../"><script>const temporaryStore=new Map();Object.defineProperty(window,"localStorage",{value:{getItem:k=>temporaryStore.get(k)||null,setItem:(k,v)=>temporaryStore.set(k,String(v)),removeItem:k=>temporaryStore.delete(k)}});</script>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width,initial-scale=1">
         <title>Império dos Pixels — O Norte Gélido</title>
@@ -18,15 +18,7 @@
         <meta name="apple-mobile-web-app-title" content="Império dos Pixels">
         <link rel="apple-touch-icon" href="assets/icon-192.png">
 
-        <script>
-        if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-            window.addEventListener('load', () => {
-            navigator.serviceWorker.register('./sw.js')
-                .then(() => console.log('PWA: Service Worker ativo!'))
-                .catch((err) => console.error('PWA: Falha ao registrar Service Worker', err));
-            });
-        }
-        </script>
+        
     </head>
     <body>
         <aside id="file-mode-notice" hidden style="padding:12px 20px;background:#332b19;color:#f3dfaa;border-bottom:1px solid #96783f">
@@ -54,6 +46,7 @@
         <script src="js/engine/calendar.js"></script>
         <script src="js/engine/reproduction.js"></script>
         <script src="js/paper-doll/campaign-identity.js"></script>
+        <script type="module" src="js/paper-doll/campaign-renderer.mjs"></script>
         <script src="js/model/people-model.js"></script>
         <script src="js/model/people-relations.js"></script>
         <script src="js/economy/annual-economy.js"></script>
@@ -70,7 +63,7 @@
         <script src="js/map-3d/campaign-map.js"></script>
         <script src="js/village/village-dialogs.js"></script>
         <script src="js/village/village-events.js"></script>
-        <script src="js/village/village-loop.js"></script>
+        
         <script src="js/territory/provinces.js"></script>
         <script src="js/territory/realm-territory.js"></script>
         <script src="js/territory/territory-selection.js"></script>
@@ -91,10 +84,15 @@
         <script src="js/kingdom/betrothals.js"></script>
         <script src="js/kingdom/betrothal-ui.js"></script>
         <script src="js/kingdom/vassal-aid.js"></script>
-        <script src="js/kingdom/marriage-council.js"></script>
-        <script src="js/kingdom/court-ui.js"></script>
-        <script src="js/kingdom/kingdom.js"></script>
+<script src="js/kingdom/marriage-council.js"></script>
+<script src="js/kingdom/court-ui.js"></script>
+<script src="js/kingdom/kingdom.js"></script>
         <script src="js/engine/daily-cycle.js"></script>
 
-    </body>
-</html>
+    <script>
+state=initial('central','Aurora','Valen');state.gold=500;state.food=500;state.buildings.home=10;upgradeKingdom();speed=0;
+const lord=makePerson({age:30});lord.name='Darian';lord.family='Carvalho';state.people.push(lord);ensurePerson(lord);lord.social=2;lord.houseHead=lord.id;lord.liege=state.king;lord.tiles=[state.royalLands.pop()];lord.treasury={food:30,gold:20,wood:20,iron:20};
+state.royalLands.push(TerritoryGeometry.all().provinces.find(t=>t.price!==null&&t.landArea>2&&!Warfare.owner(t.index)&&!Warfare.owned().has(t.index)).index);
+const captive=WorldSocieties.all().find(p=>p.realm);captive.name='Prisioneiro de Carvalho';WarCombat.capture([captive],'crown',lord.tiles[0]);
+isMandatoryModal=false;document.querySelector('#modal').close();view='army';render();worldPersonCard(captive.id);
+</script></body></html>

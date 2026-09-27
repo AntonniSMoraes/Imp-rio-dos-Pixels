@@ -29,8 +29,37 @@ globalThis.Warfare = (() => {
         if(!edge?.points.some(([x,z])=>TerritoryGeometry.height(x,z)>.17))continue;parents.set(n,i);queue.push(n);}
     }return null;
   }
-  function deployed(id){return Boolean((typeof CommunityLife!=='undefined'&&CommunityLife.deployed(id)) || state?.warfare?.armies.some(a=>a.status!=='done'&&a.men.includes(id)) || state?.warfare?.raids?.some(a=>a.status!=='done'&&a.defenders?.includes(id)));}
-  function candidates(lord){return domainPeople(lord).filter(p=>adult(p)&&p.hp>=30&&!onMission(p));}
+  function deployed(id){return Boolean(state?.warfare?.movements?.some(m=>m.person===id) || (typeof CommunityLife!=='undefined'&&CommunityLife.deployed(id)) || state?.warfare?.armies.some(a=>a.status!=='done'&&a.men.includes(id)) || state?.warfare?.raids?.some(a=>a.status!=='done'&&a.defenders?.includes(id)));}
+  function position(p){
+    if(Number.isInteger(p?.location))return p.location;
+    const lord=typeof AnnualEconomy!=='undefined'?AnnualEconomy.owner(p):byId(p?.liege||p?.houseHead);
+    return p?.tiles?.[0]??lord?.tiles?.[0]??state.capitalIndex??({north:0,central:240,south:480}[state.region]??240);
+  }
+  function friendly(index){return owned().has(index)||Boolean(owner(index)?.ally&&!owner(index)?.atWar);}
+  function adjacent(from,to){return tile(from)?.neighbors.includes(to)&&route([from],to,owner(to)?.id)?.length===2;}
+  function atFrontier(p,target){return friendly(position(p))&&adjacent(position(p),target);}
+  function candidates(lord,target){return domainPeople(lord).filter(p=>adult(p)&&p.hp>=30&&!onMission(p)&&(target===undefined||atFrontier(p,target)));}
+  function dispatch(id,target){
+    const p=byId(id),start=position(p),fail=message=>({ok:false,message});
+    if(!p||!adult(p)||onMission(p)||!friendly(start)||!friendly(target)||start===target)return fail('Escolha um adulto disponível e um destino aliado diferente.');
+    const queue=[start],parents=new Map([[start,null]]);
+    while(queue.length){const here=queue.shift();if(here===target)break;for(const next of tile(here).neighbors)if(friendly(next)&&!parents.has(next)&&adjacent(here,next)){parents.set(next,here);queue.push(next);}}
+    if(!parents.has(target))return fail('Não existe caminho terrestre contínuo por terras aliadas.');
+    const path=[];for(let i=target;i!==null;i=parents.get(i))path.unshift(i);
+    state.warfare.movements ||= [];state.warfare.movements.push({person:id,path,step:0});p.location=start;
+    report(p.name+' partiu para a Vila '+(target+1)+'; viagem de '+(path.length-1)+' dias.');return {ok:true,message:'Deslocamento iniciado.'};
+  }
+  function moveTroops(){
+    const remaining=[];
+    for(const m of state.warfare.movements||[]){
+      const p=byId(m.person);if(!p?.alive||p.away||p.capturedBy)continue;
+      const next=m.path[m.step+1];
+      if(!friendly(next)||!adjacent(m.path[m.step],next)){report('Deslocamento de '+p.name+' interrompido por mudança na rota.');continue;}
+      m.step++;p.location=next;
+      if(m.step===m.path.length-1)report(p.name+' chegou à Vila '+(next+1)+'.');else remaining.push(m);
+    }
+    state.warfare.movements=remaining;
+  }
   function declare(id){ensure();const realm=state.warfare.realms.find(r=>r.id===id);if(!realm||!realm.tiles.length)return false;realm.atWar=true;realm.ally=false;realm.relation=-60;report('A Coroa declarou guerra ao '+realm.name+'.');return true;}
   function mobilize(commanderId,target,men){
     ensure();const lord=byId(commanderId),enemy=owner(target),fail=message=>({ok:false,message});
@@ -40,26 +69,27 @@ globalThis.Warfare = (() => {
     if(state.warfare.armies.filter(a=>a.status!=='done').length>=12)return fail('O limite desta versão é de 12 exércitos simultâneos.');
     if(!state.buildings.barracks)return fail('Construa um quartel antes de mobilizar.');
     if(state.warfare.armies.some(a=>a.status!=='done'&&a.target===target))return fail('Já existe um exército destinado a esta província.');
-    const allowed=new Set(candidates(lord).map(p=>p.id));
-    if(!Array.isArray(men)||men.length<2||men.length>12||new Set(men).size!==men.length||!men.includes(lord.id)||men.some(id=>!allowed.has(id)))return fail('Selecione de 2 a 12 adultos do domínio, incluindo o comandante.');
-    const origins=lord.id===state.king?[...owned()]:personalLands(lord),path=route(origins,target,enemy.id);
+    const allowed=new Set(candidates(lord,target).map(p=>p.id));
+    if(!Array.isArray(men)||men.length<2||men.length>12||new Set(men).size!==men.length||!men.includes(lord.id)||men.some(id=>!allowed.has(id)))return fail('Selecione de 2 a 12 adultos do domínio em terras aliadas vizinhas ao alvo, incluindo o comandante.');
+    const path=[position(lord),target];
     if(!path)return fail('Não há rota terrestre até esse território. Expanda suas terras ou escolha outro alvo.');
     const food=10+men.length*2;if(state.gold<10||state.food<food)return fail('Mobilização exige 10 ouro e '+food+' alimentos da Coroa.');
     state.gold-=10;state.food-=food;
-    const army={id:state.warfare.nextId++,commander:lord.id,men:[...men],realm:enemy.id,target,path,step:0,status:'march',round:0,enemy:enemy.garrisons[target]||12};
+    const army={id:state.warfare.nextId++,commander:lord.id,men:[...men],realm:enemy.id,target,path,origins:Object.fromEntries(men.map(id=>[id,position(byId(id))])),step:0,status:'march',round:0,enemy:enemy.garrisons[target]||12};
     state.warfare.armies.push(army);report(lord.name+' mobilizou '+men.length+' combatentes rumo à Vila '+(target+1)+'.');return {ok:true,message:'Exército mobilizado. A marcha avança com os dias.'};
   }
   function recall(id){const a=state.warfare?.armies.find(a=>a.id===id&&a.status!=='done');if(!a||a.status==='return')return false;a.path=a.path.slice(0,a.step+1).reverse();a.step=0;a.status='return';report('O exército de '+(byId(a.commander)?.name||'um nobre')+' iniciou o retorno.');return true;}
   function tick(){
     ensure();
+    moveTroops();
     for(const a of state.warfare.armies){
       if(a.status==='done')continue;
       const men=a.men.map(byId).filter(p=>p?.alive&&!p.capturedBy);if(!men.length){a.status='done';report('Um exército foi destruído.');continue;}
-      if(a.status==='return'){a.step++;if(a.step>=a.path.length-1){a.step=Math.max(0,a.path.length-1);a.status='done';report('As tropas sobreviventes retornaram ao domínio.');}continue;}
+      if(a.status==='return'){a.step++;if(a.step>=a.path.length-1){a.step=Math.max(0,a.path.length-1);a.status='done';for(const p of men)p.location=a.origins?.[p.id]??a.path[a.step];report('As tropas sobreviventes retornaram ao domínio.');}continue;}
       const ration=Math.ceil(men.length/4);if(state.food<ration){recall(a.id);report('Falta de provisões: marcha interrompida.');continue;}state.food-=ration;
       if(!byId(a.commander)?.alive){recall(a.id);continue;}
       const enemy=owner(a.target);if(!enemy||enemy.id!==a.realm){recall(a.id);continue;}
-      if(a.status==='march'){a.step=Math.min(a.step+1,a.path.length-1);if(a.step===a.path.length-1){a.status='battle';a.enemy=enemy.garrisons[a.target]??12;}continue;}
+      if(a.status==='march'){a.step=Math.min(a.step+1,a.path.length-1);if(a.step===a.path.length-1){a.status='battle';for(const p of men)p.location=a.target;a.enemy=enemy.garrisons[a.target]??12;}continue;}
       const defenders=WorldSocieties.garrison(enemy.id,a.target);
       const result=WarCombat.round(men,defenders);a.round++;
       a.enemy=defenders.filter(WarCombat.fit).reduce((n,p)=>n+WarCombat.strength(p),0);
@@ -96,5 +126,5 @@ globalThis.Warfare = (() => {
     }
     if(typeof LocalRecruitment!=='undefined')LocalRecruitment.settle(index,winner,previous?.id);
   }
-  return {ensure,owner,owned,route,deployed,candidates,declare,mobilize,recall,tick,report,conquer};
+  return {ensure,owner,owned,route,deployed,candidates,declare,mobilize,recall,tick,report,conquer,position,friendly,atFrontier,dispatch};
 })();

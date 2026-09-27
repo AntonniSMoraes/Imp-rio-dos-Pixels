@@ -24,6 +24,7 @@ test('multiple origins use one reproducible anatomical model, independent of anc
 });
 test('body and portrait compose the same ancestral atlas, with safe loading fallback and cache separation',()=>{
  const c=setup(),calls=[];let urls=0;
+ c.CampaignPaperDoll={url(){throw Error("Campaign must use complete racial art");},ready(){throw Error("Inactive paper doll");}};
  const tile={w:1,h:1,data:new Uint8ClampedArray([255,0,255,255]),hair:[0],skin:[],eyes:[],face:{x:0,y:0,w:1,h:1,eyeY:0}};
  c.document={createElement:()=>({getContext:()=>({createImageData:()=>({data:new Uint8ClampedArray(4)}),putImageData(){},createLinearGradient:()=>({addColorStop(){}}),fillRect(){},drawImage(){}}),toDataURL:()=>String(++urls)})};
  c.prepareAnimeTile=(row,col,atlas,key)=>{calls.push({row,key});return tile;};

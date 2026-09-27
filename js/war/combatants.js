@@ -32,9 +32,11 @@ const WarCombat = (() => {
     }
     return !left.some(fit)?'right':!right.some(fit)?'left':null;
   }
-  function capture(losers,winner) {
+  function capture(losers,winner,location) {
     for(const p of losers.filter(p=>p.alive&&!p.capturedBy)){
+      if(Number.isInteger(location))p.location=location;
       p.capturedBy=winner;p.persuasion=0;p.capturedDay=state.day;p.job='idle';
+      if(typeof LocalRecruitment!=='undefined')LocalRecruitment.assignCustody(p);
       p.hp=Math.max(1,p.hp);
       if(p.conscripts){p.conscripts.captured=(p.conscripts.captured||0)+p.conscripts.count;p.conscripts.count=0;p.conscripts.wounds=0;p.conscripts.merit=0;p.conscripts.recommended=false;}
     }

@@ -1045,7 +1045,7 @@ familyControls = function(p) {
   if(p.social===1)html+='<p class="hint">Formação de cavaleiro: '+(p.knighthoodTraining||0)+'/48 dias de treino. Cada ano completo dá 5% de chance de investidura sem feudo.</p>';
   if(p.social===1)html+='<p>Conscritos: '+Conscription.count(p)+'/10 · baixas: '+(p.conscripts?.losses||0)+'</p>';
   html += feudalControls(p);
-  html += '<h4>Aparência pessoal</h4><p class="hint">Textura herdada: ' + TEXTURES[p.genes.texture] + '. Penteados não são herdados. O paper doll humano usa peças compatíveis com pele e cabelo herdados e roupa conforme o título. Tons sem peças, crianças e demais raças mantêm a arte racial; olhos e textura ainda não têm camadas próprias.</p></section>';
+  html += '<h4>Aparência pessoal</h4><p class="hint">Textura herdada: ' + TEXTURES[p.genes.texture] + '. Penteados não são herdados. A aparência usa as ilustrações raciais completas, com variantes selecionadas pela ancestralidade e cores herdadas.</p></section>';
   return html;
 };
 

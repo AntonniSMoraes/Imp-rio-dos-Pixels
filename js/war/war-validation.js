@@ -14,14 +14,24 @@ function validateWarfare(save) {
   const ids=new Set(),deployed=new Set(),people=new Set(save.people.map(p=>p.id));
   for(const a of war.armies){
     if(!a||!integer(a.id,1,war.nextId-1)||ids.has(a.id)||!people.has(a.commander)||!realms.has(a.realm)||!land(a.target)||!Array.isArray(a.path)||!a.path.length||a.path.length>512||a.path.some(i=>!land(i))||!integer(a.step,0,a.path.length-1)||!['march','battle','return','done'].includes(a.status)||!integer(a.round,0,10)||!Number.isFinite(a.enemy)||a.enemy<0||a.enemy>1e9||!Array.isArray(a.men)||a.men.length<2||a.men.length>12||new Set(a.men).size!==a.men.length||!a.men.includes(a.commander)||a.men.some(id=>!people.has(id)))throw Error('army');
+    if(a.origins!==undefined&&(!a.origins||typeof a.origins!=='object'||Object.keys(a.origins).length!==a.men.length||a.men.some(id=>!land(a.origins[id]))))throw Error('army origins');
     ids.add(a.id);if(a.status!=='done')for(const id of a.men){if(deployed.has(id)||save.battle?.active&&save.battle.party.includes(id))throw Error('duplicate deployment');deployed.add(id);}
   }
 
+  if(war.movements!==undefined){
+    if(!Array.isArray(war.movements)||war.movements.length>10000)throw Error('troop movements');
+    for(const m of war.movements){
+      if(!m||!people.has(m.person)||deployed.has(m.person)||save.battle?.active&&save.battle.party.includes(m.person)||!Array.isArray(m.path)||m.path.length<2||m.path.length>512||new Set(m.path).size!==m.path.length||m.path.some(i=>!land(i))||!integer(m.step,0,m.path.length-2)||save.people.find(p=>p.id===m.person)?.location!==m.path[m.step])throw Error('troop movement');
+      for(let i=1;i<m.path.length;i++)if(!TerritoryGeometry.get(m.path[i-1]).neighbors.includes(m.path[i]))throw Error('movement route');
+      deployed.add(m.person);
+    }
+  }
   if(war.societyVersion!==undefined){
     if(war.societyVersion!==1||!Array.isArray(war.people)||war.people.length>10000||!Array.isArray(war.habitats)||war.habitats.length>512||!Array.isArray(war.raids)||war.raids.length>32||!war.intel||typeof war.intel!=='object')throw Error('world societies');
     const external=new Set(), emigrants=new Set(save.people.filter(p=>p.away));
     for(const p of [...war.people,...save.people.filter(p=>p.away)]){
       if(!p||typeof p.id!=='string'||!/^[a-zA-Z0-9-]+$/.test(p.id)||(people.has(p.id)&&!emigrants.has(p))||external.has(p.id)||!text(p.name)||!text(p.family)||!land(p.location)||typeof p.alive!=='boolean'||!['M','F'].includes(p.sex)||typeof p.race!=='string'||!Number.isFinite(p.age)||p.age<18||!integer(p.level,5,100000)||!integer(p.rank,0,4)||!Number.isFinite(p.hp)||p.hp<0||p.hp>100||!Number.isFinite(p.xp)||p.xp<0||!p.attrs||!['força','vigor','magia','agilidade'].every(k=>Number.isFinite(p.attrs[k])&&p.attrs[k]>0)||p.realm&&!realms.has(p.realm)||p.capturedBy&&p.capturedBy!=='crown'&&!realms.has(p.capturedBy)||p.persuasion!==undefined&&(!Number.isFinite(p.persuasion)||p.persuasion<0||p.persuasion>100))throw Error('world person');
+      if(p.custodianId!==undefined&&(p.capturedBy!=='crown'||!people.has(p.custodianId)||p.custodianId===save.king))throw Error('prison custody');
       external.add(p.id);
     }
     const raiders=new Set(),defenders=new Set();
@@ -59,6 +69,7 @@ function validateCommunities(save) {
   for(const p of people.values()){
     if(p.communityId!==undefined&&!ids.has(p.communityId))fail();
     if(p.nextOfferDay!==undefined&&!day(p.nextOfferDay))fail();
+    if(p.nextCustodyDay!==undefined&&!day(p.nextCustodyDay))fail();
     if(p.lastOfferResult!==undefined&&!['accepted','refused','departed'].includes(p.lastOfferResult))fail();
     if(p.formerRealm!==undefined&&p.formerRealm!==null&&!realms.has(p.formerRealm))fail();
     if(p.residentStatus!==undefined&&p.residentStatus!=='wanderer')fail();

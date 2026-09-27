@@ -1,11 +1,13 @@
 /** Measured atlas-space geometry. Anchors are relative to each crop, in pixels. */
 export const ATLAS_SIZE = 1254;
 
+// Neck targets follow each painted collar, not the crop center.
+// The low commoner neckline needs deeper overlap; high noble collars need less.
 export const BODIES = [
   { crop: [45, 7, 240, 502], neck: [117, 29], height: 480, headScale: 0.265 },
-  { crop: [346, 22, 254, 488], neck: [130, 12], height: 480, headScale: 0.275 },
-  { crop: [655, 4, 252, 505], neck: [128, 29], height: 480, headScale: 0.265 },
-  { crop: [939, 7, 304, 499], neck: [158, 29], height: 480, headScale: 0.275 },
+  { crop: [346, 22, 254, 488], neck: [128, 28], height: 480, headScale: 0.275 },
+  { crop: [655, 4, 252, 505], neck: [128, 20], height: 480, headScale: 0.265 },
+  { crop: [939, 7, 304, 499], neck: [152, 20], height: 480, headScale: 0.275 },
 ];
 
 export const HEADS = [
