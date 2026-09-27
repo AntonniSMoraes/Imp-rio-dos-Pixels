@@ -9,10 +9,13 @@ function worldPersonCard(id){
   const community=state.warfare.communities?.find(c=>c.id===p.communityId);
   html+='<p>Situação: '+esc(p.capturedBy?'Prisioneiro':LocalRecruitment.deployed(p)?'Mobilizado em conflito':community?community.name:p.residentStatus==='wanderer'?'Errante · sobrevivente ou viajante':realm?'Integrante de facção':'Viajante')+'</p>';
   if((!state.people.includes(p)||p.away)&&(p.capturedBy==='crown'||LocalRecruitment.local(p))){
-    const reason=LocalRecruitment.blocked(p);
-    html+='<p>Chance de aceite: <strong>'+LocalRecruitment.chance(p)+'%</strong>. Nova tentativa após quatro dias. '+(p.capturedBy?'Custo: 2 ouro e 5 alimentos. Em caso de recusa, pode permanecer preso ou ser libertado para partir.':'Pode recusar e partir para outra província.')+'</p>';
-    html+='<button data-world-recruit="'+p.id+'" '+(reason?'disabled':'')+'>Propor recrutamento</button>'+(reason?'<p class="hint">'+esc(reason)+'</p>':'');
+    const guardian=LocalRecruitment.custodian(p),reason=LocalRecruitment.blocked(p,guardian);
+    if(p.capturedBy==='crown')html+='<p>Custódia: <strong>'+esc(LocalRecruitment.custodyLabel(p))+'</strong>. Os custos saem do cofre do guardião.</p>';
+    html+='<p>Chance de aceite: <strong>'+LocalRecruitment.chance(p,guardian)+'%</strong>. Nova tentativa após quatro dias. '+(p.capturedBy?'Custo: 2 ouro e 5 alimentos. Em caso de recusa, pode permanecer preso ou ser libertado para partir.':'Pode recusar e partir para outra província.')+'</p>';
+    html+='<button data-world-recruit="'+p.id+'" '+(reason?'disabled':'')+'>Propor recrutamento pelo guardião</button>'+(reason?'<p class="hint">'+esc(reason)+'</p>':'');
   }else if(state.people.includes(p)&&!p.away&&p.capturedBy)html+='<button data-world-ransom="'+p.id+'">Negociar resgate · 30 ouro</button>';
+  if(p.capturedBy==='crown')html+='<button data-world-release="'+p.id+'">Libertar prisioneiro pelo guardião</button>';
+  if(p.capturedBy==='crown')html+='<button data-custody-dialog="'+p.id+'">Negociar transferência ou resgate entre casas</button>';
   if(p.capturedBy)html+='<p class="hint">Cativeiro bloqueia casamento, trabalho e mobilização. Recrutamento exige aceitação.</p>';
   modal('Ficha do personagem',html);
 }
@@ -26,7 +29,7 @@ function worldCouncil(){
     html+='</div>';
   }
   const prisoners=[...WorldSocieties.all().filter(p=>p.alive&&p.capturedBy==='crown'),...state.people.filter(p=>p.alive&&!p.away&&p.capturedBy)];
-  html+='<h3>Prisioneiros</h3>'+(prisoners.map(p=>'<button data-world-person="'+p.id+'">'+esc(p.name)+' · '+(p.capturedBy==='crown'?'sob custódia da Coroa':'capturado pelo inimigo')+'</button>').join('')||'<p>Nenhum prisioneiro.</p>');
+  html+='<h3>Prisioneiros</h3>'+(prisoners.map(p=>'<button data-world-person="'+p.id+'">'+esc(p.name)+' · '+(p.capturedBy==='crown'?'sob custódia de '+esc(LocalRecruitment.custodyLabel(p)):'capturado pelo inimigo')+'</button>').join('')||'<p>Nenhum prisioneiro.</p>');
   html+='<h3>Movimentações hostis</h3>'+(w.raids.map(r=>'<p>'+esc(w.realms.find(x=>x.id===r.realm)?.name||'Incursão')+' → Vila '+(r.target+1)+' · '+(r.status==='march'?'aproximando-se':'em combate')+'</p>').join('')||'<p>Nenhuma incursão em andamento.</p>');
   html+=communitySummary();
   return html+'</div></section>';
@@ -45,12 +48,23 @@ function elfAllianceDialog(id){
   const candidates=adults().filter(p=>!p.capturedBy&&(p.id===state.king||bloodDescendant(p,state.king)));
   modal('Casamento de aliança élfica','<p>A casa élfica oferece uma união diplomática entre adultos de baixa casta. O pretendente pode recusar. Cativeiro nunca dá acesso a esta negociação.</p><label>Descendente real<select id="elf-royal">'+candidates.map(p=>'<option value="'+p.id+'">'+esc(p.name)+'</option>').join('')+'</select></label><label>Pretendente élfico<select id="elf-candidate">'+elves.map(p=>'<option value="'+p.id+'">'+esc(p.name)+' · '+(p.sex==='F'?'Mulher':'Homem')+'</option>').join('')+'</select></label><button data-world-elf-propose="'+id+'" '+(!elves.length||!candidates.length?'disabled':'')+'>Propor união</button>');
 }
+function custodyDialog(id){
+  const p=WorldSocieties.by(id);if(!p||p.capturedBy!=='crown')return;
+  const rows=LocalRecruitment.negotiators().filter(l=>l.id!==(LocalRecruitment.custodian(p)?.id||state.king)).map(l=>{
+    const q=LocalRecruitment.quote(p,l),attrs=' data-custody-person="'+p.id+'" data-custody-buyer="'+l.id+'" data-custody-seller="'+q.seller+'" '+(q.reason?'disabled':'');
+    return '<div class="proposal-card"><strong>'+esc(l.id===state.king?'Coroa':l.name+' · Casa '+l.family)+'</strong><p>Paga '+q.price+' ouro ao guardião atual. Saldo: '+Math.floor(l.id===state.king?state.gold:l.treasury?.gold||0)+' ouro.</p><button data-custody-mode="transfer"'+attrs+'>Pagar e receber custódia</button> <button data-custody-mode="ransom"'+attrs+'>Pagar resgate e libertar</button>'+(q.reason?'<p>'+esc(q.reason)+'</p>':'')+'</div>';
+  });
+  modal('Negociação de custódia', '<p>'+esc(p.name)+' · guardião: '+esc(LocalRecruitment.custodyLabel(p))+'</p><p>A transferência mantém o cativeiro e a espera de recrutamento. O resgate liberta o personagem, sem recrutá-lo. Desavenças de −25 ou menos impedem o acordo; intervalo de quatro dias entre negociações.</p>'+ (rows.join('')||'<p>Nenhuma outra casa apta.</p>'));
+}
 document.addEventListener('click',event=>{
   const b=event.target.closest('button');if(!b||!state)return;
   if(b.dataset.worldPerson)return worldPersonCard(b.dataset.worldPerson);
   if(b.dataset.worldElf)return elfAllianceDialog(b.dataset.worldElf);
+  if(b.dataset.custodyDialog)return custodyDialog(b.dataset.custodyDialog);
   let ok=false,handled=true;
-  if(b.dataset.worldRecruit)ok=WorldSocieties.recruit(b.dataset.worldRecruit);
+  if(b.dataset.custodyMode)ok=LocalRecruitment.negotiate(b.dataset.custodyPerson,b.dataset.custodyBuyer,b.dataset.custodyMode,b.dataset.custodySeller);
+  else if(b.dataset.worldRecruit){const p=WorldSocieties.by(b.dataset.worldRecruit);ok=LocalRecruitment.offer(p?.id,LocalRecruitment.custodian(p));}
+  else if(b.dataset.worldRelease){const p=WorldSocieties.by(b.dataset.worldRelease);ok=LocalRecruitment.release(p?.id,LocalRecruitment.custodian(p));}
   else if(b.dataset.worldPersuade)ok=WorldSocieties.persuade(b.dataset.worldPersuade);
   else if(b.dataset.worldRansom)ok=WorldSocieties.ransom(b.dataset.worldRansom);
   else if(b.dataset.worldSpy)ok=WorldSocieties.spy(b.dataset.worldSpy);

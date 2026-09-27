@@ -1,0 +1,5 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Encaixes do paper doll</title><style>body{background:#122431;color:#ddd;font:16px sans-serif;margin:24px}main{display:flex;gap:20px;flex-wrap:wrap}canvas{background:#243c4b;border:1px solid #789;width:320px}h2{font-size:18px}p{max-width:950px}</style><h1>Encaixes de cabeça e pescoço</h1><p>Rei loiro · mulher morena plebeia · mulher loira nobre</p><main></main><script type="module">
+import {loadAtlas,renderCharacter} from '../js/paper-doll/renderer.mjs';
+const atlas=await loadAtlas();
+for(const [name,body,skin,hair,outfit] of [['Aldric','male','ivory','short-blond','noble'],['Elena','female','brown','long-brown','commoner'],['Herança','female','ivory','short-blond','noble']]){const section=document.createElement('section');section.innerHTML='<h2>'+name+'</h2>';const canvas=document.createElement('canvas');renderCharacter(canvas,atlas,{version:1,seed:name,race:'human',ageGroup:'adult',body,skin,hair,outfit});section.append(canvas);document.querySelector('main').append(section);}
+</script></html>

@@ -41,7 +41,7 @@ const WorldSocieties = (() => {
       state.warfare.people=state.warfare.people.filter(x=>x.id!==p.id);p.away=false;p.realm=null;p.capturedBy=null;p.job='idle';p.houseHead=p.id;p.liege=state.king;p.social=0;p.loyalty=60;p.source={type:'adult',day:state.day};p.location=undefined;
       if(!state.people.includes(p))state.people.push(p);if(typeof ensurePerson==='function')ensurePerson(p);
     }else {p.realm=realm;p.capturedBy=null;}
-    delete p.communityId;delete p.residentStatus;
+    delete p.communityId;delete p.custodianId;delete p.residentStatus;
     return true;
   }
   function recruit(id){if(typeof LocalRecruitment!=='undefined')return LocalRecruitment.offer(id);const p=all().find(p=>p.id===id);if(!p?.alive||p.realm||p.capturedBy||!own(p.location))return false;return join(p);}

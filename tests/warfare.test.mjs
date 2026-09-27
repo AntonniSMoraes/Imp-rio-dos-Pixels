@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
 import {setupWorld as setup,geometry} from './helpers/world-engine.mjs';
-function frontier(c){for(const r of c.state.warfare.realms)for(const target of r.tiles){const free=geometry.get(target).neighbors.find(i=>geometry.get(i).price!==null&&!c.Warfare.owner(i));if(free!==undefined){c.state.royalLands.push(free);return{r,target};}}throw Error('frontier');}
+function frontier(c){for(const r of c.state.warfare.realms)for(const target of r.tiles){const free=geometry.get(target).neighbors.find(i=>geometry.get(i).price!==null&&!c.Warfare.owner(i));if(free!==undefined){c.state.royalLands.push(free);for(const p of c.state.people)p.location=free;return{r,target};}}throw Error('frontier');}
 test('rival initialization is deterministic, connected and never overwrites existing land',()=>{
  const c=setup(),snapshot=JSON.stringify(c.state.warfare);c.Warfare.ensure();assert.equal(JSON.stringify(c.state.warfare),snapshot);assert.equal(c.state.warfare.realms.length,7);const used=new Set([240]);for(const r of c.state.warfare.realms)for(const i of r.tiles){assert.ok(!used.has(i));used.add(i);}assert.equal(JSON.stringify(setup().state.warfare),snapshot);
 });
@@ -28,4 +28,22 @@ test('starting central realm can reach a rival over land',()=>{
 });
 test('defeat preserves enemy ownership and cannot claim a province twice',()=>{
  const c=setup(),{r,target}=frontier(c);c.Warfare.declare(r.id);for(const p of c.Societies.garrison(r.id,target))for(const k of Object.keys(p.attrs))p.attrs[k]=1000;for(const p of c.state.people)for(const k of Object.keys(p.attrs))p.attrs[k]=1;c.Warfare.mobilize('king',target,['king','soldier']);for(let i=0;i<15;i++)c.Warfare.tick();assert.ok(r.tiles.includes(target));assert.ok(!c.state.royalLands.includes(target));assert.equal(c.Warfare.deployed('soldier'),false);
+});
+
+test('distant combatants are absent from muster and cannot bypass adjacency through mobilize',()=>{
+ const c=setup(),{r,target}=frontier(c);c.Warfare.declare(r.id);c.state.people[0].location=240;
+ assert.ok(!c.Warfare.candidates(c.state.people[0],target).some(p=>p.id==='king'));
+ const gold=c.state.gold;assert.equal(c.Warfare.mobilize('king',target,['king','soldier']).ok,false);assert.equal(c.state.gold,gold);
+});
+test('dispatch travels one friendly province each day, persists and blocks overlapping orders',()=>{
+ const c=setup();const path=c.state.warfare.realms.map(r=>c.Warfare.route([240],r.capital,r.id)).find(p=>p?.length>5&&p.slice(0,4).every(i=>!c.Warfare.owner(i))).slice(0,4);
+ c.state.royalLands=[...path];const king=c.state.people[0];assert.equal(c.Warfare.dispatch('king',path[3]).ok,true);assert.equal(c.Warfare.deployed('king'),true);
+ assert.equal(c.Warfare.dispatch('king',path[2]).ok,false);c.Warfare.tick();assert.equal(king.location,path[1]);
+ const copy=JSON.parse(JSON.stringify(c.state));assert.doesNotThrow(()=>c.validateWarfare(copy));copy.warfare.movements.push({...copy.warfare.movements[0]});assert.throws(()=>c.validateWarfare(copy));
+ c.state.warfare=JSON.parse(JSON.stringify(c.state.warfare));c.Warfare.tick();assert.equal(king.location,path[2]);c.Warfare.tick();assert.equal(king.location,path[3]);assert.equal(c.Warfare.deployed('king'),false);
+});
+test('dispatch rejects neutral transit and stops when the route loses allied control',()=>{
+ const c=setup();const path=c.state.warfare.realms.map(r=>c.Warfare.route([240],r.capital,r.id)).find(p=>p?.length>5&&p.slice(0,4).every(i=>!c.Warfare.owner(i))).slice(0,4);
+ c.state.royalLands=[path[0],path[3]];assert.equal(c.Warfare.dispatch('king',path[3]).ok,false);
+ c.state.royalLands=[...path];assert.equal(c.Warfare.dispatch('king',path[3]).ok,true);c.state.royalLands=c.state.royalLands.filter(i=>i!==path[1]);c.Warfare.tick();assert.equal(c.state.people[0].location,path[0]);assert.equal(c.Warfare.deployed('king'),false);
 });

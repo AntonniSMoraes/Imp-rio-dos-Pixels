@@ -33,8 +33,6 @@ function artURL(p, portrait = false) {
   }
 }
 function renderArtURL(p, portrait = false) {
-  const layered=globalThis.CampaignPaperDoll?.url(p,portrait);
-  if(layered)return layered;
   if (!animeAtlas)
     return "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
   const key = JSON.stringify([
@@ -79,14 +77,14 @@ function renderArtURL(p, portrait = false) {
   return url;
 }
 function portrait(p, cls = "portrait") {
-  if (!animeAtlas && !globalThis.CampaignPaperDoll?.ready(p))
+  if (!animeAtlas)
     return `<span class="${cls} art-loading" role="img" aria-label="${animeLoadError ? "Arte indisponível" : "Carregando retrato"}">${animeLoadError ? "!" : "…"}</span>`;
   const url = artURL(p, true);
   if (canvasReadBlocked) return `<span class="${cls} art-loading" role="img" aria-label="Retrato bloqueado pelo navegador">${esc(p.name?.slice(0, 1) || '?')}</span>`;
   return `<img class="${cls}" src="${url}" alt="Retrato anime medieval de ${esc(p.name)}" width="80" height="80">`;
 }
 function fullPortrait(p) {
-  if (!animeAtlas && !globalThis.CampaignPaperDoll?.ready(p))
+  if (!animeAtlas)
     return `<div class="full-character art-loading">${animeLoadError ? "Não foi possível carregar a arte." : "Carregando arte…"}</div>`;
   const url = artURL(p);
   if (canvasReadBlocked) return '<div class="full-character art-loading">Retrato bloqueado neste modo. Abra pelo servidor local para carregar a arte.</div>';

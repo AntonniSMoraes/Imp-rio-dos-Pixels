@@ -150,3 +150,53 @@ test('paper doll migration is stable and unsupported colors and mixed ancestry r
  assert.equal(c.run('CampaignAppearance.appearance(p)'),null);assert.equal(c.run('JSON.stringify(p.genes)'),c.run('originalGenes'));
  c.run("p.paperDoll={version:1,skin:'ivory',hair:'blond'};p.ancestry={human:.875,wolf:.125};");assert.equal(c.run('CampaignAppearance.appearance(p)'),null);
 });
+
+test('feudal capture uses the defended territory and house resources, not royal funds',()=>{
+ const c=engine();c.run(`const lord=makePerson({age:30});state.people.push(lord);ensurePerson(lord);lord.social=2;lord.tiles=[state.royalLands.pop()];lord.houseHead=lord.id;lord.treasury={gold:20,food:30,wood:0,iron:0};const captive=WorldSocieties.all().find(p=>p.realm);WarCombat.capture([captive],'crown',lord.tiles[0]);const royalGold=state.gold,royalFood=state.food;`);
+ assert.equal(c.run('captive.custodianId===lord.id'),true);
+ assert.equal(c.run('LocalRecruitment.offer(captive.id)'),false);
+ c.run('Math.random=()=>0;');assert.equal(c.run('LocalRecruitment.offer(captive.id,lord)'),true);
+ assert.equal(c.run('state.gold===royalGold&&state.food===royalFood'),true);
+ assert.equal(c.run('lord.treasury.gold'),18);assert.equal(c.run('lord.treasury.food'),25);
+ assert.equal(c.run('captive.liege===lord.id'),true);assert.equal(c.run('captive.custodianId'),undefined);
+ c.run('validateSave(JSON.parse(JSON.stringify(state)))');
+});
+test('custody survives saves, transfers after the guardian loses authority and release clears captivity',()=>{
+ const c=engine();c.run(`const lord=makePerson({age:30});state.people.push(lord);ensurePerson(lord);lord.social=2;lord.tiles=[state.royalLands.pop()];const captive=WorldSocieties.all().find(p=>p.realm);WarCombat.capture([captive],'crown',lord.tiles[0]);validateSave(JSON.parse(JSON.stringify(state)));state=JSON.parse(JSON.stringify(state));const prisoner=WorldSocieties.by(captive.id);`);
+ assert.equal(c.run('LocalRecruitment.custodian(prisoner).id===lord.id'),true);
+ assert.equal(c.run('LocalRecruitment.release(prisoner.id)'),false);
+ c.run('byId(lord.id).alive=false;LocalRecruitment.custodyTick();');assert.equal(c.run('prisoner.custodianId'),undefined);
+ assert.equal(c.run('LocalRecruitment.release(prisoner.id)'),true);assert.equal(c.run('prisoner.capturedBy'),null);
+ assert.equal(c.run('LocalRecruitment.release(prisoner.id)'),false);
+ c.run('validateSave(JSON.parse(JSON.stringify(state)))');
+});
+test('house custody cannot spend royal reserves when the house is bankrupt or negotiate twice per day',()=>{
+ const c=engine();c.run(`const lord=makePerson({age:30});state.people.push(lord);ensurePerson(lord);lord.social=2;lord.tiles=[state.royalLands.pop()];lord.treasury={food:0,gold:0};const captive=WorldSocieties.all().find(p=>p.realm);WarCombat.capture([captive],'crown',lord.tiles[0]);`);
+ assert.equal(c.run('LocalRecruitment.offer(captive.id,lord)'),false);
+ c.run('lord.treasury={gold:20,food:30};state.day=12;Math.random=()=>.99;LocalRecruitment.custodyTick();LocalRecruitment.custodyTick();');
+ assert.equal(c.run('lord.treasury.gold'),18);assert.equal(c.run('lord.treasury.food'),25);assert.equal(c.run('captive.lastOfferResult'),'refused');
+ assert.throws(()=>c.run("{const bad=JSON.parse(JSON.stringify(state));bad.warfare.people.find(p=>p.id===captive.id).custodianId='missing';validateSave(bad);}"));
+});
+
+test('custody agreements conserve gold, preserve prisoner consent and reject stale or repeated purchases',()=>{
+ const c=engine();c.run(`const seller=makePerson({age:30});state.people.push(seller);ensurePerson(seller);seller.social=2;seller.tiles=[state.royalLands[0]];seller.treasury={gold:20,food:30};state.royalLands.push(1);const captive=WorldSocieties.all().find(p=>p.realm);WarCombat.capture([captive],'crown',seller.tiles[0]);captive.nextOfferDay=10;captive.persuasion=20;const total=state.gold+seller.treasury.gold;const custodyPrice=LocalRecruitment.quote(captive,byId(state.king)).price;`);
+ assert.equal(c.run("LocalRecruitment.negotiate(captive.id,state.king,'transfer','stale')"),false);
+ assert.equal(c.run("LocalRecruitment.negotiate(captive.id,state.king,'transfer',seller.id)"),true);
+ assert.equal(c.run('state.gold+seller.treasury.gold'),c.run('total'));assert.equal(c.run('seller.treasury.gold'),20+c.run('custodyPrice'));
+ assert.equal(c.run('captive.capturedBy'),'crown');assert.equal(c.run('captive.custodianId'),undefined);assert.equal(c.run('captive.nextOfferDay'),10);assert.equal(c.run('captive.persuasion'),20);
+ assert.equal(c.run("LocalRecruitment.negotiate(captive.id,seller.id,'transfer',state.king)"),false);
+ c.run('validateSave(JSON.parse(JSON.stringify(state)));state=JSON.parse(JSON.stringify(state));');assert.equal(c.run('WorldSocieties.by(captive.id).nextCustodyDay'),5);
+});
+test('ransom between houses releases without recruiting and pays the previous custodian',()=>{
+ const c=engine();c.run(`const buyer=makePerson({age:30});state.people.push(buyer);ensurePerson(buyer);buyer.social=2;buyer.tiles=[1];buyer.treasury={gold:200,food:30};const captive=WorldSocieties.all().find(p=>p.realm);WarCombat.capture([captive],'crown',state.royalLands[0]);const before=state.gold;const custodyPrice=LocalRecruitment.quote(captive,buyer).price;`);
+ assert.equal(c.run("LocalRecruitment.negotiate(captive.id,buyer.id,'ransom',state.king)"),true);
+ assert.equal(c.run('captive.capturedBy'),null);assert.equal(c.run('captive.residentStatus'),'wanderer');assert.equal(c.run('state.people.includes(captive)'),false);
+ assert.equal(c.run('state.gold'),c.run('before+custodyPrice'));assert.equal(c.run('buyer.treasury.gold'),200-c.run('custodyPrice'));
+ assert.equal(c.run("LocalRecruitment.negotiate(captive.id,buyer.id,'ransom',state.king)"),false);
+});
+test('hostile relations and insolvency block custody agreements without charging either house',()=>{
+ const c=engine();c.run(`const buyer=makePerson({age:30});state.people.push(buyer);ensurePerson(buyer);buyer.social=2;buyer.tiles=[1];buyer.treasury={gold:0,food:30};const captive=WorldSocieties.all().find(p=>p.realm);WarCombat.capture([captive],'crown',state.royalLands[0]);const before=state.gold;`);
+ assert.equal(c.run("LocalRecruitment.negotiate(captive.id,buyer.id,'transfer',state.king)"),false);
+ c.run("buyer.treasury.gold=200;state.houseRelations ||= {};state.houseRelations[[state.king,buyer.id].sort().join(':')]=-25;");assert.equal(c.run("LocalRecruitment.negotiate(captive.id,buyer.id,'transfer',state.king)"),false);
+ assert.equal(c.run('state.gold'),c.run('before'));assert.equal(c.run('buyer.treasury.gold'),200);
+});
